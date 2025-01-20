@@ -1,0 +1,105 @@
+# Week 1 Implementation Checklist
+
+Below is a high-level checklist for setting up the **Week 1** MVP of the CRM system. Check off each item as you complete it.
+
+---
+
+## 1. Tech Stack & Project Setup
+
+- [ ] **Create Supabase Project**  
+  - Spin up a new Supabase instance for auth, database, and storage.
+
+- [ ] **Initialize Next.js + Tailwind**  
+  - Create a Next.js project (e.g. via `npx create-next-app`)  
+  - Install and configure Tailwind CSS  
+  - Install and configure [shadcn/ui](https://ui.shadcn.com/) components  
+
+- [ ] **Set Up AWS Amplify**  
+  - Connect your GitHub repo to AWS Amplify  
+  - Confirm a basic build and deploy step (“Hello World”)  
+
+---
+
+## 2. Backend Implementation in Supabase
+
+- [ ] **Database Schema**  
+  - Create the main tables:  
+    - `tickets` (fields for ID, title, description, status, priority, created_at, etc.)  
+    - `users` (Supabase default plus roles if needed)  
+    - `comments` or `ticket_messages` (optional, if you want threaded conversations)  
+
+- [ ] **Row Level Security (RLS) (Optional for MVP)**  
+  - Leave RLS permissive to start (or define basic policies if comfortable).  
+
+- [ ] **Edge Functions (API-First)**  
+  - Implement minimal CRUD operations:  
+    - `createTicket` (insert new ticket record)  
+    - `getTicket` (fetch a specific ticket by ID)  
+    - `listTickets` (fetch all or user-specific tickets)  
+    - `updateTicketStatus` (change status, priority, or assigned user)  
+
+---
+
+## 3. Basic Features & UI
+
+- [ ] **Authentication & Routing**  
+  - Integrate Supabase Auth into Next.js  
+  - Create pages/routes for sign-in, sign-up  
+  - Ensure logged-in users can access the main ticket UI  
+
+- [ ] **Ticket Creation**  
+  - Build a simple Next.js page or component for submitting a new ticket (title, description, priority)  
+  - Connect the form to the `createTicket` edge function or Supabase client  
+
+- [ ] **Ticket List & Detail**  
+  - Display a list of tickets for the logged-in user (or all tickets if the user is an admin/agent)  
+  - Implement a detail page that shows ticket data (title, description, status, etc.)  
+  - (Optional) Provide a comment section if you added a `comments` table  
+
+- [ ] **Ticket Updates**  
+  - Allow status changes (open, in_progress, closed)  
+  - (Optional) Provide “internal notes” vs. “public reply” if you added separate fields  
+
+---
+
+## 4. Enhanced MVP Features (Week 1)
+
+- [ ] **Queue Management**  
+  - Add filtering by status, priority, or assigned agent  
+  - (Optional) Implement bulk actions to update multiple tickets at once  
+
+- [ ] **Basic Admin View**  
+  - If you support roles, show an admin page that lists all tickets  
+  - Provide ability to reassign tickets to different agents  
+
+- [ ] **Performance Dashboards (Optional)**  
+  - Display simple metrics (count of open tickets, average resolution time, etc.)  
+
+- [ ] **Attachments (Optional)**  
+  - Use Supabase Storage to allow file uploads linked to a ticket record  
+
+---
+
+## 5. Finalize & Deploy
+
+- [ ] **Local Testing**  
+  - Verify ticket creation, updates, and user flow all work on your local dev server  
+
+- [ ] **CI/CD with AWS Amplify**  
+  - Push changes to GitHub  
+  - Confirm that Amplify automatically builds and deploys the updated Next.js site  
+
+- [ ] **User Acceptance Check**  
+  - Log in as a customer, submit a ticket  
+  - Log in as an agent/admin, respond to or close the ticket  
+  - Confirm basic reporting or listing of tickets  
+
+---
+
+**At this point, you should have a functional MVP** that meets the core Week 1 requirements:  
+1. A working ticket data model and CRUD in Supabase.  
+2. Basic authentication and role-based views in Next.js.  
+3. A minimal UI for ticket creation, listing, and status updates.  
+4. (Optional) Additional queue management and admin features.
+
+Once everything in this checklist is complete, you’re ready to begin AI enhancements (Week 2).  
