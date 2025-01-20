@@ -2,14 +2,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { TicketFilters } from "@/components/tickets/ticket-filters";
 import { TicketList } from "@/components/tickets/ticket-list";
-
-type Ticket = {
-  id: number;
-  title: string;
-  status: "open" | "in_progress" | "closed";
-  created: string;
-  tags: string[];
-};
+import { Ticket } from "@/types/ticket";
+// import { createClient } from "@/lib/supabase/server";
 
 // TODO: Replace with actual data fetching from Supabase
 const MOCK_TICKETS: Ticket[] = [
@@ -19,6 +13,7 @@ const MOCK_TICKETS: Ticket[] = [
     status: "open",
     created: "2023-10-20",
     tags: ["bug", "dashboard"],
+    description: "Unable to access the main dashboard after login.",
   },
   {
     id: 2,
@@ -26,6 +21,7 @@ const MOCK_TICKETS: Ticket[] = [
     status: "in_progress",
     created: "2023-10-19",
     tags: ["feature", "ui"],
+    description: "Would like to request a dark mode option for better visibility.",
   },
   {
     id: 3,
@@ -33,19 +29,33 @@ const MOCK_TICKETS: Ticket[] = [
     status: "closed",
     created: "2023-10-18",
     tags: ["mobile", "auth"],
+    description: "Cannot log in using the mobile app on iOS.",
   },
 ];
 
 export default async function TicketsPage() {
-  // TODO: Fetch tickets from Supabase
+  // const supabase = createClient();
+  
+  // TODO: Implement Supabase query
+  // const { data: tickets, error } = await supabase
+  //   .from('tickets')
+  //   .select('*')
+  //   .order('created_at', { ascending: false });
+  
+  // if (error) {
+  //   console.error('Error fetching tickets:', error);
+  //   // TODO: Add proper error handling UI
+  //   return <div>Error loading tickets</div>;
+  // }
+  
   const tickets = MOCK_TICKETS;
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold">Tickets</h1>
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-semibold text-white">Tickets</h1>
         <Link href="/tickets/new">
-          <Button>New Ticket</Button>
+          <Button className="bg-blue-600 hover:bg-blue-700">New Ticket</Button>
         </Link>
       </div>
       
