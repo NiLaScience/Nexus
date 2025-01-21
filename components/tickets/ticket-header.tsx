@@ -14,14 +14,38 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { updateTicketAction } from "@/app/actions/tickets";
+import { useToast } from "@/components/ui/use-toast";
 
 interface TicketHeaderProps {
+  ticketId: number;
   created: string;
   tags: string[];
   status: "open" | "in_progress" | "closed";
 }
 
-export function TicketHeader({ created, tags, status }: TicketHeaderProps) {
+export function TicketHeader({ ticketId, created, tags, status }: TicketHeaderProps) {
+  const { toast } = useToast();
+
+  const handleStatusChange = async (newStatus: string) => {
+    const result = await updateTicketAction(ticketId.toString(), {
+      status: newStatus as "open" | "in_progress" | "closed"
+    });
+
+    if (result.error) {
+      toast({
+        title: "Error",
+        description: result.error,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Ticket status updated",
+      });
+    }
+  };
+
   return (
     <div className="flex justify-between items-start">
       <div>
@@ -65,7 +89,7 @@ export function TicketHeader({ created, tags, status }: TicketHeaderProps) {
           </PopoverContent>
         </Popover>
         
-        <Select defaultValue={status}>
+        <Select defaultValue={status} onValueChange={handleStatusChange}>
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>

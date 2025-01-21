@@ -1,6 +1,5 @@
-"use client";
+"use server";
 
-import React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import { InternalNotes } from "@/components/tickets/internal-notes";
 import { RelatedTickets } from "@/components/tickets/related-tickets";
 import { AttachmentsList } from "@/components/tickets/attachments-list";
 import { TicketDetails } from "@/components/tickets/ticket-details";
+import { getTicketsAction } from "@/app/actions/tickets";
 import {
   MOCK_MESSAGES,
   MOCK_TIMELINE,
@@ -18,16 +18,36 @@ import {
   MOCK_RELATED_TICKETS,
   MOCK_ATTACHMENTS,
 } from "@/lib/mock-data";
-import { getMockTicket } from "@/lib/mock-ticket-data";
 
 interface TicketPageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
-export default function TicketPage({ params }: TicketPageProps) {
-  const { id } = React.use(params);
+export default async function TicketPage({ params }: TicketPageProps) {
+  const { id } = params;
   const ticketId = parseInt(id);
-  const ticket = getMockTicket(ticketId);
+  const { tickets = [], error } = await getTicketsAction();
+  
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-destructive/10 text-destructive p-4 rounded-lg">
+          Error loading ticket: {error}
+        </div>
+      </div>
+    );
+  }
+
+  const ticket = tickets.find(t => t.id === ticketId);
+  if (!ticket) {
+    return (
+      <div className="p-6">
+        <div className="bg-destructive/10 text-destructive p-4 rounded-lg">
+          Ticket not found
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -44,6 +64,7 @@ export default function TicketPage({ params }: TicketPageProps) {
         <div className="col-span-2 space-y-6">
           <div className="bg-card border p-4 rounded-lg">
             <TicketHeader
+              ticketId={ticketId}
               created={ticket.created}
               tags={ticket.tags}
               status={ticket.status}
@@ -65,14 +86,8 @@ export default function TicketPage({ params }: TicketPageProps) {
         <div className="space-y-6">
           <TicketDetails
             ticketId={ticketId}
-            requester={{
-              name: ticket.requester.name,
-              email: ticket.requester.email,
-            }}
-            assignedTo={ticket.assignedTo ? {
-              name: ticket.assignedTo.name,
-              email: ticket.assignedTo.email,
-            } : undefined}
+            requester={ticket.requester}
+            assignedTo={ticket.assignedTo}
           />
           <TicketTimeline events={MOCK_TIMELINE} />
           <AttachmentsList

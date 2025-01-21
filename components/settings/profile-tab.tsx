@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
-import { updateProfileAction } from "@/app/actions";
+import { updateProfileAction } from "@/app/actions/auth";
 import { useToast } from "@/components/ui/use-toast";
 
 export function ProfileTab() {
