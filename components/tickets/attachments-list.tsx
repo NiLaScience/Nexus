@@ -6,10 +6,9 @@ import type { Attachment } from "@/types/ticket";
 
 interface AttachmentsListProps {
   attachments: Attachment[];
-  ticketId: number;
 }
 
-export function AttachmentsList({ attachments, ticketId }: AttachmentsListProps) {
+export function AttachmentsList({ attachments }: AttachmentsListProps) {
   const handleDownload = async (attachment: Attachment) => {
     // TODO: Handle attachment download from Supabase Storage
     console.log('Downloading attachment:', attachment.name);

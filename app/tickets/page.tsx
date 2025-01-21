@@ -11,25 +11,47 @@ const MOCK_TICKETS: Ticket[] = [
     id: 1,
     title: "Cannot access dashboard",
     status: "open",
+    priority: "high",
     created: "2023-10-20",
+    updated: "2023-10-20",
     tags: ["bug", "dashboard"],
     description: "Unable to access the main dashboard after login.",
+    requester: {
+      name: "John Smith",
+      email: "john@example.com"
+    }
   },
   {
     id: 2,
     title: "Feature request: Dark mode",
     status: "in_progress",
+    priority: "medium",
     created: "2023-10-19",
+    updated: "2023-10-19",
     tags: ["feature", "ui"],
     description: "Would like to request a dark mode option for better visibility.",
+    requester: {
+      name: "Sarah Johnson",
+      email: "sarah@example.com"
+    },
+    assignedTo: {
+      name: "Mike Wilson",
+      email: "mike@support.com"
+    }
   },
   {
     id: 3,
     title: "Login issues on mobile",
     status: "closed",
+    priority: "low",
     created: "2023-10-18",
+    updated: "2023-10-18",
     tags: ["mobile", "auth"],
     description: "Cannot log in using the mobile app on iOS.",
+    requester: {
+      name: "David Lee",
+      email: "david@example.com"
+    }
   },
 ];
 

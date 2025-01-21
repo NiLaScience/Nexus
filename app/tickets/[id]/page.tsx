@@ -7,6 +7,7 @@ import { TicketTimeline } from "@/components/tickets/ticket-timeline";
 import { InternalNotes } from "@/components/tickets/internal-notes";
 import { RelatedTickets } from "@/components/tickets/related-tickets";
 import { AttachmentsList } from "@/components/tickets/attachments-list";
+import { TicketDetails } from "@/components/tickets/ticket-details";
 import {
   MOCK_MESSAGES,
   MOCK_TIMELINE,
@@ -16,14 +17,11 @@ import {
 } from "@/lib/mock-data";
 import { getMockTicket } from "@/lib/mock-ticket-data";
 
-interface Props {
-  params: {
-    id: string;
-  };
-}
-
-export default async function TicketDetailPage({ params }: Props) {
-  const ticketId = parseInt(params.id);
+export default async function TicketDetailPage(props: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await props.params;
+  const ticketId = parseInt(id);
   const ticket = getMockTicket(ticketId);
 
   return (
@@ -51,20 +49,30 @@ export default async function TicketDetailPage({ params }: Props) {
 
           <MessageHistory
             messages={MOCK_MESSAGES}
-            ticketId={ticketId}
           />
+
+          <InternalNotes
+            comments={MOCK_INTERNAL_COMMENTS}
+          />
+
+          <RelatedTickets tickets={MOCK_RELATED_TICKETS} />
         </div>
 
         <div className="space-y-6">
-          <TicketTimeline events={MOCK_TIMELINE} />
-          <InternalNotes
-            comments={MOCK_INTERNAL_COMMENTS}
+          <TicketDetails
             ticketId={ticketId}
+            requester={{
+              name: ticket.requester.name,
+              email: ticket.requester.email,
+            }}
+            assignedTo={ticket.assignedTo ? {
+              name: ticket.assignedTo.name,
+              email: ticket.assignedTo.email,
+            } : undefined}
           />
-          <RelatedTickets tickets={MOCK_RELATED_TICKETS} />
+          <TicketTimeline events={MOCK_TIMELINE} />
           <AttachmentsList
             attachments={MOCK_ATTACHMENTS}
-            ticketId={ticketId}
           />
         </div>
       </div>

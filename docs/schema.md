@@ -1,35 +1,68 @@
-# Supabase Database Schema (Minimal Viable)
+# Current Database Schema
 
-Below is a **minimal** schema design that covers the key Week 1 features described in the project. It provides:
+## Core Tables
 
-1. **User Profiles** and basic role handling  
-2. **Tickets** with status, priority, and assignment  
-3. **Conversation** history with internal vs. public messages  
-4. **Team/Agent Management** for routing and group-based assignment  
-5. **Tags** for categorizing or automating workflows  
+### 1. `profiles`
+Extends the default `auth.users` table with additional user information.
 
-You can expand or refine these tables as the application grows.
+| Column       | Type         | Description                               |
+|-------------|--------------|-------------------------------------------|
+| `id`        | `uuid`       | PK, references auth.users.id              |
+| `role`      | `user_role`  | User's role in the system                |
+| `full_name` | `text`       | User's full name                         |
+| `created_at`| `timestamptz`| When the profile was created             |
+| `updated_at`| `timestamptz`| When the profile was last updated        |
+
+### 2. `tickets`
+Central entity for customer support tickets.
+
+| Column         | Type           | Description                               |
+|---------------|----------------|-------------------------------------------|
+| `id`          | `uuid`         | PK, unique identifier                     |
+| `title`       | `text`         | Ticket title                             |
+| `description` | `text`         | Detailed ticket description              |
+| `status`      | `ticket_status`| Current status of the ticket             |
+| `created_by`  | `uuid`         | References auth.users.id (creator)        |
+| `assigned_to` | `uuid`         | References auth.users.id (assignee)       |
+| `tags`        | `text`         | Ticket tags/categories                   |
+| `custom_fields`| `jsonb`       | Flexible custom fields storage           |
+| `created_at`  | `timestamptz`  | When the ticket was created             |
+| `updated_at`  | `timestamptz`  | When the ticket was last updated        |
+
+### 3. `ticket_attachments`
+Stores files attached to tickets.
+
+| Column         | Type         | Description                               |
+|---------------|--------------|-------------------------------------------|
+| `id`          | `uuid`       | PK, unique identifier                     |
+| `ticket_id`   | `uuid`       | References tickets.id                     |
+| `file_name`   | `text`       | Original file name                       |
+| `file_path`   | `text`       | Path to file in storage                  |
+| `content_type`| `text`       | MIME type of the file                    |
+| `created_by`  | `uuid`       | References auth.users.id (uploader)       |
+| `created_at`  | `timestamptz`| When the attachment was created          |
+
+## Custom Types
+
+1. `user_role` - Enum for user roles
+2. `ticket_status` - Enum for ticket statuses
+
+## Relationships
+- `profiles.id` → `auth.users.id` (extends auth user)
+- `tickets.created_by` → `auth.users.id` (ticket creator)
+- `tickets.assigned_to` → `auth.users.id` (ticket assignee)
+- `ticket_attachments.ticket_id` → `tickets.id` (attachment belongs to ticket)
+- `ticket_attachments.created_by` → `auth.users.id` (attachment uploader)
+
+## Notes
+1. Using `auth.users` from Supabase Auth for core user management
+2. All timestamps are in timezone-aware format (`timestamptz`)
+3. Using `jsonb` for flexible custom fields in tickets
+4. File storage handled by Supabase Storage, with paths stored in `ticket_attachments`
 
 ---
 
-## 1. `profiles` Table
-
-Stores information about each user beyond the default `auth.users` table.  
-- **Primary Key**: `id` (UUID) referencing `auth.users.id`
-  
-| Column         | Type        | Description                                                                |
-|----------------|------------|----------------------------------------------------------------------------|
-| `id`           | `uuid`     | PK, references `auth.users.id`                                             |
-| `role`         | `text`     | Role or permission level (e.g. `customer`, `agent`, `admin`)               |
-| `display_name` | `text`     | Public-facing name                                                          |
-| `created_at`   | `timestamp`| Defaults to `now()`                                                         |
-
-Example usage:
-- A user signs up via Supabase Auth → a row is inserted here to store role and other profile info.
-
----
-
-## 2. `teams` Table
+## 1. `teams` Table
 
 Represents support or sales teams for routing and load balancing.  
 - **Primary Key**: `id` (auto-generated, e.g. `uuid`)
@@ -37,7 +70,7 @@ Represents support or sales teams for routing and load balancing.
 | Column       | Type        | Description                             |
 |--------------|------------|-----------------------------------------|
 | `id`         | `uuid`     | PK, unique identifier                   |
-| `name`       | `text`     | Name of the team (e.g., “Support L1”)   |
+| `name`       | `text`     | Name of the team (e.g., "Support L1")   |
 | `created_at` | `timestamp`| Defaults to `now()`                     |
 
 Example usage:
@@ -45,7 +78,7 @@ Example usage:
 
 ---
 
-## 3. `user_teams` Table
+## 2. `user_teams` Table
 
 Maps users to teams.  
 - **Primary Key**: `id` (auto-generated, e.g. `bigserial` or `uuid`)
@@ -62,31 +95,7 @@ Example usage:
 
 ---
 
-## 4. `tickets` Table
-
-Central entity representing a customer request.  
-- **Primary Key**: `id` (auto-generated, e.g. `uuid`)
-
-| Column          | Type        | Description                                                                               |
-|-----------------|------------|-------------------------------------------------------------------------------------------|
-| `id`            | `uuid`     | PK, unique identifier                                                                     |
-| `customer_id`   | `uuid`     | References `profiles.id` (the user who created the ticket)                                |
-| `assigned_to`   | `uuid`     | References `profiles.id` (agent), can be `NULL` if unassigned                             |
-| `team_id`       | `uuid`     | References `teams.id` (if routed to a specific team), can be `NULL`                       |
-| `status`        | `text`     | e.g. `open`, `in_progress`, `closed`, `pending`, etc.                                    |
-| `priority`      | `text`     | e.g. `low`, `medium`, `high`, or `urgent`                                                 |
-| `title`         | `text`     | Short title or summary of the issue                                                      |
-| `description`   | `text`     | Longer description or initial message from the customer                                   |
-| `created_at`    | `timestamp`| Defaults to `now()`                                                                       |
-| `updated_at`    | `timestamp`| Updated on each row change (can use triggers or default value approach in Postgres)       |
-
-Example usage:
-- A customer creates a ticket → `customer_id` references their profile.
-- Admin or auto-assign process sets `assigned_to` or `team_id`.
-
----
-
-## 5. `ticket_messages` Table (Optional but Recommended)
+## 4. `ticket_messages` Table (Optional but Recommended)
 
 Stores conversation history or internal notes for each ticket.  
 - **Primary Key**: `id` (auto-generated, e.g. `uuid`)
@@ -106,7 +115,7 @@ Example usage:
 
 ---
 
-## 6. `tags` Table (Optional)
+## 5. `tags` Table (Optional)
 
 Defines reusable tags (e.g., for automation rules).  
 - **Primary Key**: `id` (auto-generated, e.g. `uuid`)
@@ -114,12 +123,12 @@ Defines reusable tags (e.g., for automation rules).
 | Column       | Type        | Description                    |
 |--------------|------------|--------------------------------|
 | `id`         | `uuid`     | PK, unique identifier          |
-| `name`       | `text`     | e.g. “billing”, “login_issues” |
+| `name`       | `text`     | e.g. "billing", "login_issues" |
 | `created_at` | `timestamp`| Defaults to `now()`            |
 
 ---
 
-## 7. `ticket_tags` Table (Optional)
+## 6. `ticket_tags` Table (Optional)
 
 Supports many-to-many tagging of tickets.  
 - **Primary Key**: `id` (auto-generated, e.g. `bigserial` or `uuid`)

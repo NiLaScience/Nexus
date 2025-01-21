@@ -8,10 +8,9 @@ import { useState } from "react";
 
 interface InternalNotesProps {
   comments: InternalComment[];
-  ticketId: number;
 }
 
-export function InternalNotes({ comments: initialComments, ticketId }: InternalNotesProps) {
+export function InternalNotes({ comments: initialComments }: InternalNotesProps) {
   const [comments, setComments] = useState<InternalComment[]>(initialComments);
   const [noteText, setNoteText] = useState("");
 

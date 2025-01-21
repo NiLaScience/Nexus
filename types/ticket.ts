@@ -1,16 +1,34 @@
-export type TicketStatus = "open" | "in_progress" | "closed";
+export type TicketStatus = 'open' | 'in_progress' | 'closed';
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: 'customer' | 'agent' | 'admin';
+}
 
 export interface Ticket {
   id: number;
   title: string;
+  description: string;
   status: TicketStatus;
+  priority: 'low' | 'medium' | 'high';
   created: string;
+  updated: string;
   tags: string[];
-  description?: string;
+  requester: {
+    name: string;
+    email: string;
+  };
+  assignedTo?: {
+    name: string;
+    email: string;
+  };
 }
 
 export interface TimelineEvent {
-  type: "created" | "assigned" | "status_change" | "comment";
+  id: number;
+  type: 'created' | 'assigned' | 'status_change' | 'comment';
   date: string;
   user: string;
   description: string;
@@ -28,10 +46,14 @@ export interface Comment {
 export interface Message {
   id: number;
   user: string;
-  role: "Customer" | "Support Agent";
+  role: string;
   date: string;
   content: string;
-  attachments: Attachment[];
+  attachments: {
+    name: string;
+    size: string;
+    type: string;
+  }[];
 }
 
 export interface InternalComment {

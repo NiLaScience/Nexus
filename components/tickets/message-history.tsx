@@ -8,10 +8,9 @@ import { useState } from "react";
 
 interface MessageHistoryProps {
   messages: Message[];
-  ticketId: number;
 }
 
-export function MessageHistory({ messages: initialMessages, ticketId }: MessageHistoryProps) {
+export function MessageHistory({ messages: initialMessages }: MessageHistoryProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [messageText, setMessageText] = useState("");
 
@@ -43,28 +42,26 @@ export function MessageHistory({ messages: initialMessages, ticketId }: MessageH
       <div className="space-y-6 mb-6">
         {messages.map((message) => (
           <div key={message.id} className="flex gap-4">
-            <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-white">
               {message.user[0]}
             </div>
             <div className="flex-1">
               <div className="flex justify-between items-start">
                 <div>
                   <span className="font-medium text-white">{message.user}</span>
-                  <span className="text-xs text-zinc-400 ml-2">
-                    {message.role}
-                  </span>
+                  <span className="text-xs text-zinc-400 ml-2">{message.role}</span>
                 </div>
                 <span className="text-zinc-500 text-sm">{message.date}</span>
               </div>
-              <p className="mt-1 text-zinc-400">{message.content}</p>
+              <p className="text-zinc-400 mt-2">{message.content}</p>
               {message.attachments.length > 0 && (
-                <div className="mt-2 flex gap-2">
+                <div className="mt-3 flex gap-2">
                   {message.attachments.map((attachment) => (
                     <Button
                       key={attachment.name}
                       variant="outline"
                       size="sm"
-                      className="bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700"
+                      className="border-zinc-800 hover:bg-zinc-800 text-zinc-400"
                     >
                       <Paperclip className="w-4 h-4 mr-1" /> {attachment.name}
                     </Button>

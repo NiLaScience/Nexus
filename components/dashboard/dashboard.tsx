@@ -4,6 +4,7 @@ import { QuickStats } from "./stats/quick-stats";
 import { RecentActivity } from "./activity/recent-activity";
 import { TrendingArticles } from "./articles/trending-articles";
 import { TeamWorkload } from "./team/team-workload";
+import { CustomerSatisfaction } from "./satisfaction/customer-satisfaction";
 
 export function Dashboard() {
   return (
@@ -24,9 +25,10 @@ export function Dashboard() {
           <TrendingArticles />
         </div>
 
-        {/* Team Workload */}
+        {/* Team Workload and Customer Satisfaction */}
         <div className="space-y-6">
           <TeamWorkload />
+          <CustomerSatisfaction />
         </div>
       </div>
     </div>
