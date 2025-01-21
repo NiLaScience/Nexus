@@ -17,6 +17,7 @@ export async function updateTicketAction(
 
     // Get the current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
     if (!user) throw new Error("Not authenticated");
 
     // Get the current ticket state to compare changes
