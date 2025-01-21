@@ -1,6 +1,6 @@
 # User Actions Checklist by Role
 
-Below is a consolidated list of actions for the **three main user types**—Customers, Agents, and Admins—covering roughly 80% of the necessary features for the CRM. These actions can be extended or refined as needed.
+Below is a consolidated list of actions for the **three main user types**—Customers, Agents, and Admins—covering roughly 80% of the necessary features for the CRM. These actions can be extended or refined as needed. 
 
 ---
 
