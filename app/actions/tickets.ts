@@ -47,7 +47,6 @@ export async function getTicketsAction(filters?: TicketFilters) {
       status,
       priority,
       created_at,
-      updated_at,
       customer:profiles!tickets_customer_id_fkey(
         id, 
         full_name
@@ -118,7 +117,6 @@ export async function getTicketsAction(filters?: TicketFilters) {
     status: ticket.status,
     priority: ticket.priority,
     created: ticket.created_at,
-    updated: ticket.updated_at,
     tags: ticket.ticket_tags?.map((t: any) => t.tag?.name) || [],
     description: ticket.description,
     requester: {
@@ -135,32 +133,3 @@ export async function getTicketsAction(filters?: TicketFilters) {
 
   return { tickets: transformedTickets };
 }
-
-/**
- * Updates a ticket's details
- * @param id The ticket ID to update
- * @param data The ticket data to update
- * @returns Object indicating success or error
- */
-export async function updateTicketAction(id: string, data: Partial<Ticket>) {
-  const supabase = await createClient();
-  
-  const { error } = await supabase
-    .from('tickets')
-    .update({
-      title: data.title,
-      description: data.description,
-      status: data.status,
-      priority: data.priority,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error updating ticket:', error);
-    return { error: 'Failed to update ticket' };
-  }
-
-  revalidateTag('tickets');
-  return { success: true };
-} 

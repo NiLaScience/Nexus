@@ -2,7 +2,8 @@
 
 import { encodedRedirect } from "@/utils/utils";
 import { createClient } from "@/utils/supabase/server";
-import { headers } from "next/headers";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { headers, cookies } from "next/headers";
 
 /**
  * Sign up a new user with the provided form data
@@ -14,7 +15,6 @@ export async function signUpAction(formData: FormData) {
   const password = formData.get("password")?.toString();
   const role = formData.get("role")?.toString();
   const fullName = formData.get("full_name")?.toString();
-  const supabase = await createClient();
   const origin = (await headers()).get("origin");
 
   if (!email || !password || !role || !fullName) {
@@ -35,7 +35,42 @@ export async function signUpAction(formData: FormData) {
     );
   }
 
-  // Sign up the user
+  // Create regular client for auth and service client for database operations
+  const supabase = await createClient();
+  const cookieStore = await cookies();
+  const serviceClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value, ...options });
+          } catch (error) {
+            // Handle cookie errors in development
+            if (process.env.NODE_ENV === 'development') {
+              console.error('Error setting cookie:', error);
+            }
+          }
+        },
+        remove(name: string, options: CookieOptions) {
+          try {
+            cookieStore.delete({ name, ...options });
+          } catch (error) {
+            // Handle cookie errors in development
+            if (process.env.NODE_ENV === 'development') {
+              console.error('Error removing cookie:', error);
+            }
+          }
+        },
+      },
+    }
+  );
+
+  // Sign up the user with regular client
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
     password,
@@ -61,12 +96,14 @@ export async function signUpAction(formData: FormData) {
   }
 
   // For customers, get or create their organization based on email domain
+  // For admins and agents, use or create the default organization
   let organizationId = null;
+
   if (role === 'customer') {
     const domain = email.split('@')[1];
     
     // Try to find existing organization
-    const { data: existingOrg } = await supabase
+    const { data: existingOrg } = await serviceClient
       .from('organizations')
       .select('id')
       .eq('domain', domain)
@@ -76,7 +113,7 @@ export async function signUpAction(formData: FormData) {
       organizationId = existingOrg.id;
     } else {
       // Create new organization based on domain
-      const { data: newOrg, error: orgError } = await supabase
+      const { data: newOrg, error: orgError } = await serviceClient
         .from('organizations')
         .insert({
           name: domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1),
@@ -92,14 +129,42 @@ export async function signUpAction(formData: FormData) {
         organizationId = newOrg.id;
       }
     }
+  } else {
+    // For admins and agents, use or create the default organization
+    const { data: defaultOrg } = await serviceClient
+      .from('organizations')
+      .select('id')
+      .eq('domain', 'nexus.com')
+      .single();
+
+    if (defaultOrg) {
+      organizationId = defaultOrg.id;
+    } else {
+      // Create default organization if it doesn't exist
+      const { data: newOrg, error: orgError } = await serviceClient
+        .from('organizations')
+        .insert({
+          name: 'Nexus Support',
+          domain: 'nexus.com',
+          description: 'Default organization for support staff',
+        })
+        .select('id')
+        .single();
+
+      if (orgError) {
+        console.error("Default organization creation error:", orgError);
+      } else {
+        organizationId = newOrg.id;
+      }
+    }
   }
 
-  // Create the profile - organization_id only required for customers
-  const { error: profileError } = await supabase.from("profiles").insert({
+  // Create the profile - organization_id now required for all roles
+  const { error: profileError } = await serviceClient.from("profiles").insert({
     id: authData.user.id,
     role: role,
     full_name: fullName,
-    ...(role === 'customer' && { organization_id: organizationId }),
+    organization_id: organizationId,  // Now set for all roles
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
@@ -112,7 +177,7 @@ export async function signUpAction(formData: FormData) {
 
   // Only add organization membership for customers
   if (role === 'customer' && organizationId) {
-    const { error: memberError } = await supabase
+    const { error: memberError } = await serviceClient
       .from('organization_members')
       .insert({
         organization_id: organizationId,

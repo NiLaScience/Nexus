@@ -4,7 +4,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { User } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -35,7 +34,7 @@ export function TicketDetails({ ticketId, requester, assignedTo }: TicketDetails
           {requester ? (
             <div className="flex items-center gap-2 mt-1">
               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                <User className="w-4 h-4 text-muted-foreground" />
+                {requester.full_name?.[0] ?? '?'}
               </div>
               <div>
                 <div>{requester.full_name || 'Anonymous'}</div>
@@ -52,7 +51,7 @@ export function TicketDetails({ ticketId, requester, assignedTo }: TicketDetails
           {assignedTo ? (
             <div className="flex items-center gap-2 mt-1">
               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                <User className="w-4 h-4 text-muted-foreground" />
+                {assignedTo.full_name?.[0] ?? '?'}
               </div>
               <div>
                 <div>{assignedTo.full_name || 'Anonymous'}</div>

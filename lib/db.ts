@@ -24,7 +24,6 @@ export type Tables = {
     created_by: string
     assigned_to?: string
     created_at: Date
-    updated_at: Date
   }
   comments: {
     id: string

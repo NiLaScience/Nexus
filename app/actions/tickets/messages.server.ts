@@ -1,7 +1,6 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-import { Database } from "@/types/supabase";
 import { AddMessageParams, TicketMessage } from "./messages";
 
 export async function getTicketMessagesAction(ticketId: string) {

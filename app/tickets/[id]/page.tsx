@@ -17,17 +17,13 @@ const MOCK_TIMELINE: TimelineEvent[] = [];
 const MOCK_RELATED_TICKETS: RelatedTicket[] = [];
 const MOCK_ATTACHMENTS: Attachment[] = [];
 
-interface TicketPageProps {
-  params: { id: string };
-}
-
 interface TicketTag {
   tag: {
     name: string;
   };
 }
 
-export default async function TicketPage({ params }: TicketPageProps) {
+export default async function TicketPage({ params }: any) {
   const { id } = params;
   const supabase = await createClient();
 

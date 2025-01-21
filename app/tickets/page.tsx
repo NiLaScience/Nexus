@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { TicketFilters } from "@/components/tickets/ticket-filters";
 import { TicketList } from "@/components/tickets/ticket-list";
 import { getTicketsAction } from "@/app/actions/tickets";
-import { Ticket } from "@/types/ticket";
 
 export default async function TicketsPage() {
   const { tickets = [], error } = await getTicketsAction();

@@ -118,8 +118,7 @@ create table tickets (
     organization_id uuid not null references organizations(id),
     assigned_to uuid references profiles(id),
     team_id uuid references teams(id),
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
+    created_at timestamptz not null default now()
 );
 
 -- Function to validate ticket
@@ -411,11 +410,6 @@ create trigger update_organizations_updated_at
 
 create trigger update_teams_updated_at
     before update on teams
-    for each row
-    execute function update_updated_at_column();
-
-create trigger update_tickets_updated_at
-    before update on tickets
     for each row
     execute function update_updated_at_column();
 

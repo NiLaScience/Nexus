@@ -6,9 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PlusCircle, X, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface TicketFormProps {
-  onSubmit: (formData: FormData) => Promise<void>;
+  onSubmit: (formData: FormData) => Promise<any>;
 }
 
 export function TicketForm({ onSubmit }: TicketFormProps) {
@@ -17,6 +24,7 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
   const [tagInput, setTagInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [priority, setPriority] = useState<string>("medium");
 
   const handleAddTag = () => {
     if (tagInput && !tags.includes(tagInput)) {
@@ -43,6 +51,9 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
       const formData = new FormData(e.currentTarget);
       // Add tags to form data
       formData.append('tags', JSON.stringify(tags));
+      
+      // Add priority to form data
+      formData.append('priority', priority);
       
       // Add files to form data
       files.forEach((file) => {
@@ -90,6 +101,26 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
             minLength={10}
             maxLength={1000}
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2" htmlFor="priority">
+            Priority
+          </label>
+          <Select
+            value={priority}
+            onValueChange={setPriority}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select priority" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="urgent">Urgent</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
