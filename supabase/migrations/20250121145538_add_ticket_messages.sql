@@ -4,7 +4,7 @@ insert into tickets (
   customer_id, organization_id, assigned_to, team_id
 ) values 
   (
-    '66666666-6666-4a66-a666-666666666666',
+    '99999999-9999-4999-9999-999999999999',
     'Export feature not working',
     'When I try to export my reports to PDF, nothing happens',
     'in_progress',
@@ -16,7 +16,7 @@ insert into tickets (
     'a1b2c3d4-e5f6-4321-8901-abcdef123456'
   ),
   (
-    '77777777-7777-4a77-a777-777777777777',
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaab',
     'Need help with API documentation',
     'Looking for documentation on the REST API endpoints',
     'open',
@@ -63,7 +63,7 @@ insert into ticket_messages (
 ) values
   (
     'dddddddd-dddd-4ddd-dddd-dddddddddddd',
-    '66666666-6666-4a66-a666-666666666666',
+    '99999999-9999-4999-9999-999999999999',
     'a7b8c9d0-e1f2-0987-4567-123456789012',
     'The export button is not responding at all. I''ve tried both Chrome and Firefox.',
     'web',
@@ -71,7 +71,7 @@ insert into ticket_messages (
   ),
   (
     'eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee',
-    '66666666-6666-4a66-a666-666666666666',
+    '99999999-9999-4999-9999-999999999999',
     'd4e5f6a7-b8c9-7654-1234-def123456789',
     'I''ve checked the logs and found some JavaScript errors.',
     'web',
@@ -79,7 +79,7 @@ insert into ticket_messages (
   ),
   (
     'ffffffff-ffff-4fff-ffff-ffffffffffff',
-    '66666666-6666-4a66-a666-666666666666',
+    '99999999-9999-4999-9999-999999999999',
     'd4e5f6a7-b8c9-7654-1234-def123456789',
     'We''re deploying a fix for the export functionality. Could you try again in about 10 minutes?',
     'web',
@@ -92,7 +92,7 @@ insert into ticket_messages (
 ) values
   (
     'aaaaaaaa-1111-4111-aaaa-111111111111',
-    '77777777-7777-4a77-a777-777777777777',
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaab',
     'a7b8c9d0-e1f2-0987-4567-123456789012',
     'I need documentation for integrating with your REST API. Specifically for the reporting endpoints.',
     'email',
@@ -100,7 +100,7 @@ insert into ticket_messages (
   ),
   (
     'bbbbbbbb-2222-4222-bbbb-222222222222',
-    '77777777-7777-4a77-a777-777777777777',
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaab',
     'd4e5f6a7-b8c9-7654-1234-def123456789',
     'Note: Customer is using our enterprise plan, should prioritize API documentation request.',
     'web',
@@ -115,7 +115,7 @@ insert into ticket_messages (
   source,
   is_internal
 ) values (
-  '66666666-6666-4a66-a666-666666666666',  -- Test ticket ID
+  '99999999-9999-4999-9999-999999999999',  -- Test ticket ID
   'a7b8c9d0-e1f2-0987-4567-123456789012',  -- Customer ID
   'When I try to export my reports to PDF, nothing happens. The button seems to be working but no file is downloaded.',
   'web',

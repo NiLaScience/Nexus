@@ -107,7 +107,12 @@ export async function getTicketsAction(filters?: TicketFilters) {
       query = query.eq('customer_id', filters.customer_id);
     }
     if (filters.search) {
-      query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      const searchTerm = `%${filters.search}%`;
+      query = query.or(
+        `title.ilike.${searchTerm},` +
+        `description.ilike.${searchTerm},` +
+        `ticket_tags!inner(tag!inner(name.ilike.${searchTerm}))`
+      );
     }
   }
 
