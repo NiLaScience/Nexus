@@ -105,4 +105,19 @@ insert into ticket_messages (
     'Note: Customer is using our enterprise plan, should prioritize API documentation request.',
     'web',
     true
-  ); 
+  );
+
+-- Add some test messages
+insert into ticket_messages (
+  ticket_id,
+  author_id,
+  content,
+  source,
+  is_internal
+) values (
+  '66666666-6666-4a66-a666-666666666666',  -- Test ticket ID
+  'a7b8c9d0-e1f2-0987-4567-123456789012',  -- Customer ID
+  'When I try to export my reports to PDF, nothing happens. The button seems to be working but no file is downloaded.',
+  'web',
+  false
+); 

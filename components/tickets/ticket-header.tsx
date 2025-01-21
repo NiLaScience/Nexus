@@ -18,7 +18,7 @@ import { updateTicketAction } from "@/app/actions/tickets";
 import { useToast } from "@/components/ui/use-toast";
 
 interface TicketHeaderProps {
-  ticketId: number;
+  ticketId: string;
   created: string;
   tags: string[];
   status: "open" | "in_progress" | "closed";
@@ -28,7 +28,7 @@ export function TicketHeader({ ticketId, created, tags, status }: TicketHeaderPr
   const { toast } = useToast();
 
   const handleStatusChange = async (newStatus: string) => {
-    const result = await updateTicketAction(ticketId.toString(), {
+    const result = await updateTicketAction(ticketId, {
       status: newStatus as "open" | "in_progress" | "closed"
     });
 

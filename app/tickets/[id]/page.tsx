@@ -1,5 +1,3 @@
-"use server";
-
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,35 +8,72 @@ import { InternalNotes } from "@/components/tickets/internal-notes";
 import { RelatedTickets } from "@/components/tickets/related-tickets";
 import { AttachmentsList } from "@/components/tickets/attachments-list";
 import { TicketDetails } from "@/components/tickets/ticket-details";
-import { getTicketsAction } from "@/app/actions/tickets";
-import {
-  MOCK_MESSAGES,
-  MOCK_TIMELINE,
-  MOCK_INTERNAL_COMMENTS,
-  MOCK_RELATED_TICKETS,
-  MOCK_ATTACHMENTS,
-} from "@/lib/mock-data";
+import { createClient } from "@/utils/supabase/server";
+import { getTicketMessagesAction, getInternalNotesAction } from "@/app/actions/tickets/messages.server";
+import type { TimelineEvent, RelatedTicket, Attachment } from "@/types/ticket";
+
+// Temporary mock data until we implement these features
+const MOCK_TIMELINE: TimelineEvent[] = [];
+const MOCK_RELATED_TICKETS: RelatedTicket[] = [];
+const MOCK_ATTACHMENTS: Attachment[] = [];
 
 interface TicketPageProps {
   params: { id: string };
 }
 
+interface TicketTag {
+  tag: {
+    name: string;
+  };
+}
+
 export default async function TicketPage({ params }: TicketPageProps) {
   const { id } = params;
-  const ticketId = parseInt(id);
-  const { tickets = [], error } = await getTicketsAction();
+  const supabase = await createClient();
+
+  // Fetch ticket with related profiles and tags
+  const { data: ticket, error: ticketError } = await supabase
+    .from('tickets')
+    .select(`
+      *,
+      customer:customer_id(
+        id,
+        full_name,
+        role
+      ),
+      assignee:assigned_to(
+        id,
+        full_name,
+        role
+      ),
+      ticket_tags(
+        tag:tag_id(
+          name
+        )
+      )
+    `)
+    .eq('id', id)
+    .single();
+
+  // Fetch messages and internal notes
+  const [messagesResult, internalNotesResult] = await Promise.all([
+    getTicketMessagesAction(id),
+    getInternalNotesAction(id)
+  ]);
+  console.log('Ticket ID being queried:', id); // Debug log
+  console.log('Messages result:', messagesResult); // Debug log
   
-  if (error) {
+  if (ticketError) {
+    console.error('Ticket error:', ticketError); // Debug log
     return (
       <div className="p-6">
         <div className="bg-destructive/10 text-destructive p-4 rounded-lg">
-          Error loading ticket: {error}
+          Error loading ticket: {ticketError.message}
         </div>
       </div>
     );
   }
 
-  const ticket = tickets.find(t => t.id === ticketId);
   if (!ticket) {
     return (
       <div className="p-6">
@@ -48,6 +83,11 @@ export default async function TicketPage({ params }: TicketPageProps) {
       </div>
     );
   }
+
+  // Transform ticket tags into the expected format
+  const tags = ticket.ticket_tags?.map((tt: TicketTag) => tt.tag.name) || [];
+
+  console.log('Ticket data:', { ...ticket, tags }); // Debug log
 
   return (
     <div className="p-6">
@@ -64,20 +104,22 @@ export default async function TicketPage({ params }: TicketPageProps) {
         <div className="col-span-2 space-y-6">
           <div className="bg-card border p-4 rounded-lg">
             <TicketHeader
-              ticketId={ticketId}
-              created={ticket.created}
-              tags={ticket.tags}
+              ticketId={id}
+              created={ticket.created_at}
+              tags={tags}
               status={ticket.status}
             />
             <p className="text-muted-foreground mt-4">{ticket.description}</p>
           </div>
 
           <MessageHistory
-            messages={MOCK_MESSAGES}
+            ticketId={id}
+            initialMessages={messagesResult.messages || []}
           />
 
           <InternalNotes
-            comments={MOCK_INTERNAL_COMMENTS}
+            ticketId={id}
+            initialNotes={internalNotesResult.messages || []}
           />
 
           <RelatedTickets tickets={MOCK_RELATED_TICKETS} />
@@ -85,9 +127,9 @@ export default async function TicketPage({ params }: TicketPageProps) {
 
         <div className="space-y-6">
           <TicketDetails
-            ticketId={ticketId}
-            requester={ticket.requester}
-            assignedTo={ticket.assignedTo}
+            ticketId={id}
+            requester={ticket.customer}
+            assignedTo={ticket.assignee}
           />
           <TicketTimeline events={MOCK_TIMELINE} />
           <AttachmentsList

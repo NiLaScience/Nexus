@@ -1,9 +1,8 @@
 'use client';
 
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { InternalComment } from "@/types/ticket";
 import { useState } from "react";
 import {
   Card,
@@ -11,31 +10,46 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { addInternalNoteAction } from "@/app/actions/tickets/messages.server";
+import type { TicketMessage } from "@/app/actions/tickets/messages";
+import { formatDistanceToNow } from "date-fns";
 
 interface InternalNotesProps {
-  comments: InternalComment[];
+  ticketId: string;
+  initialNotes: TicketMessage[];
 }
 
-export function InternalNotes({ comments: initialComments }: InternalNotesProps) {
-  const [comments, setComments] = useState<InternalComment[]>(initialComments);
+export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
+  const [notes, setNotes] = useState<TicketMessage[]>(initialNotes);
   const [noteText, setNoteText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAddNote = async () => {
-    if (!noteText.trim()) return;
+    if (!noteText.trim() || isSubmitting) return;
 
-    // TODO: Add internal note to Supabase
-    console.log('Internal note added:', noteText);
+    setIsSubmitting(true);
+    try {
+      const { message, error } = await addInternalNoteAction({
+        ticketId,
+        content: noteText.trim(),
+      });
 
-    // Optimistically update UI
-    const newNote: InternalComment = {
-      id: comments.length + 1,
-      user: "Agent Smith", // TODO: Get from auth
-      date: new Date().toLocaleString(),
-      content: noteText,
-    };
+      if (error) {
+        console.error('Error adding note:', error);
+        // TODO: Add toast notification
+        return;
+      }
 
-    setComments([...comments, newNote]);
-    setNoteText("");
+      if (message) {
+        setNotes([...notes, message]);
+        setNoteText("");
+      }
+    } catch (error) {
+      console.error('Error adding note:', error);
+      // TODO: Add toast notification
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -47,20 +61,30 @@ export function InternalNotes({ comments: initialComments }: InternalNotesProps)
       </CardHeader>
       <CardContent>
         <div className="space-y-4 mb-4">
-          {comments.map((comment) => (
-            <div key={comment.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
-              <div className="flex justify-between items-start">
-                <span className="font-medium">{comment.user}</span>
-                <span className="text-muted-foreground text-sm">{comment.date}</span>
+          {notes.map((note) => (
+            <div key={note.id} className="flex gap-4">
+              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                {note.author?.full_name?.[0] ?? '?'}
               </div>
-              <p className="mt-1 text-muted-foreground">{comment.content}</p>
+              <div className="flex-1">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="font-medium">{note.author?.full_name || 'Unknown'}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{note.author?.role}</span>
+                  </div>
+                  <span className="text-muted-foreground text-sm">
+                    {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
+                  </span>
+                </div>
+                <p className="mt-1 text-muted-foreground">{note.content}</p>
+              </div>
             </div>
           ))}
         </div>
-        <div className="space-y-2">
+        <div className="space-y-4">
           <Textarea
             placeholder="Add an internal note..."
-            className="min-h-[80px]"
+            className="min-h-[100px]"
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             onKeyDown={(e) => {
@@ -70,13 +94,17 @@ export function InternalNotes({ comments: initialComments }: InternalNotesProps)
               }
             }}
           />
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={handleAddNote}
-          >
-            Add Note
-          </Button>
+          <div className="flex justify-between items-center">
+            <Button variant="outline" disabled>
+              <Paperclip className="w-4 h-4 mr-2" /> Attach Files
+            </Button>
+            <Button 
+              onClick={handleAddNote} 
+              disabled={isSubmitting || !noteText.trim()}
+            >
+              {isSubmitting ? "Adding..." : "Add Note"}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

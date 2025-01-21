@@ -6,16 +6,16 @@ import {
 } from "@/components/ui/card";
 import { User } from "lucide-react";
 
+interface UserProfile {
+  id: string;
+  full_name: string | null;
+  role: string;
+}
+
 interface TicketDetailsProps {
-  ticketId: number;
-  requester: {
-    name: string;
-    email: string;
-  };
-  assignedTo?: {
-    name: string;
-    email: string;
-  };
+  ticketId: string;
+  requester?: UserProfile | null;
+  assignedTo?: UserProfile | null;
 }
 
 export function TicketDetails({ ticketId, requester, assignedTo }: TicketDetailsProps) {
@@ -32,15 +32,19 @@ export function TicketDetails({ ticketId, requester, assignedTo }: TicketDetails
         
         <div>
           <div className="text-sm font-medium text-muted-foreground">Requester</div>
-          <div className="flex items-center gap-2 mt-1">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-              <User className="w-4 h-4 text-muted-foreground" />
+          {requester ? (
+            <div className="flex items-center gap-2 mt-1">
+              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                <User className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <div>
+                <div>{requester.full_name || 'Anonymous'}</div>
+                <div className="text-xs text-muted-foreground">{requester.role}</div>
+              </div>
             </div>
-            <div>
-              <div>{requester.name}</div>
-              <div className="text-sm text-muted-foreground">{requester.email}</div>
-            </div>
-          </div>
+          ) : (
+            <div className="text-sm text-muted-foreground mt-1">Unknown requester</div>
+          )}
         </div>
 
         <div>
@@ -51,8 +55,8 @@ export function TicketDetails({ ticketId, requester, assignedTo }: TicketDetails
                 <User className="w-4 h-4 text-muted-foreground" />
               </div>
               <div>
-                <div>{assignedTo.name}</div>
-                <div className="text-sm text-muted-foreground">{assignedTo.email}</div>
+                <div>{assignedTo.full_name || 'Anonymous'}</div>
+                <div className="text-xs text-muted-foreground">{assignedTo.role}</div>
               </div>
             </div>
           ) : (

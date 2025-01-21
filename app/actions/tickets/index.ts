@@ -1,2 +1,2 @@
-export { getTicketsAction, updateTicketAction } from '../tickets';
-export type { TicketFilters } from '../tickets'; 
+export { getTicketsAction, updateTicketAction } from './actions';
+export type { TicketFilters } from './actions'; 

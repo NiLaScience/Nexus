@@ -239,6 +239,19 @@ create policy "Users can read events for their organization's tickets"
     )
   );
 
+create policy "Users can create events for their organization's tickets"
+  on ticket_events for insert
+  with check (
+    exists(
+      select 1 from tickets
+      where tickets.id = ticket_events.ticket_id
+      and (
+        tickets.organization_id = auth.get_user_organization()
+        or auth.is_admin_or_agent()
+      )
+    )
+  );
+
 -- Organization members policies
 create policy "Admins can manage all organization members"
   on organization_members for all
@@ -262,3 +275,15 @@ create policy "Organization admins can manage their org members"
 create policy "Users can read their organization members"
   on organization_members for select
   using (organization_id = auth.get_user_organization());
+
+create policy "Only admins and agents can read internal messages"
+  on ticket_messages for select
+  using (
+    (not is_internal) or auth.is_admin_or_agent()
+  );
+
+create policy "Only admins and agents can create internal messages"
+  on ticket_messages for insert
+  with check (
+    (not is_internal) or auth.is_admin_or_agent()
+  );
