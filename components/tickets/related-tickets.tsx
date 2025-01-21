@@ -14,9 +14,9 @@ interface RelatedTicketsProps {
 
 export function RelatedTickets({ tickets }: RelatedTicketsProps) {
   return (
-    <Card className="bg-zinc-900 border-zinc-800">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2">
           <Link2 className="w-4 h-4" /> Related Tickets
         </CardTitle>
       </CardHeader>
@@ -26,23 +26,23 @@ export function RelatedTickets({ tickets }: RelatedTicketsProps) {
             <Link
               key={ticket.id}
               href={`/tickets/${ticket.id}`}
-              className="block p-3 rounded-lg hover:bg-zinc-800/50 transition-colors"
+              className="block p-3 rounded-lg hover:bg-muted transition-colors"
             >
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <div className="text-white font-medium">{ticket.title}</div>
+                  <div className="font-medium">{ticket.title}</div>
                   <div className="flex gap-2">
                     {ticket.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded text-xs"
+                        className="bg-muted text-muted-foreground px-2 py-0.5 rounded text-xs"
                       >
                         {tag}
                       </span>
                     ))}
                   </div>
                 </div>
-                <div className="text-xs text-zinc-400">{ticket.date}</div>
+                <div className="text-xs text-muted-foreground">{ticket.date}</div>
               </div>
             </Link>
           ))}

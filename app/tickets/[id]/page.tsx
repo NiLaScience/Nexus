@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,10 +19,13 @@ import {
 } from "@/lib/mock-data";
 import { getMockTicket } from "@/lib/mock-ticket-data";
 
-export default async function TicketDetailPage(props: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await props.params;
+interface TicketPageProps {
+  params: {
+    id: string;
+  };
+}
+
+export default function TicketPage({ params: { id } }: TicketPageProps) {
   const ticketId = parseInt(id);
   const ticket = getMockTicket(ticketId);
 
@@ -28,22 +33,22 @@ export default async function TicketDetailPage(props: {
     <div className="p-6">
       <div className="flex items-center gap-4 mb-6">
         <Link href="/tickets">
-          <Button variant="ghost" size="icon" className="text-white hover:bg-zinc-800">
+          <Button variant="ghost" size="icon">
             <ArrowLeft className="w-4 h-4" />
           </Button>
         </Link>
-        <h1 className="text-2xl font-semibold text-white">{ticket.title}</h1>
+        <h1 className="text-2xl font-semibold">{ticket.title}</h1>
       </div>
       
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
-          <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg">
+          <div className="bg-card border p-4 rounded-lg">
             <TicketHeader
               created={ticket.created}
               tags={ticket.tags}
               status={ticket.status}
             />
-            <p className="text-zinc-400 mt-4">{ticket.description}</p>
+            <p className="text-muted-foreground mt-4">{ticket.description}</p>
           </div>
 
           <MessageHistory

@@ -62,8 +62,8 @@ export function Chatbot() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-96 bg-white rounded-lg shadow-xl flex flex-col">
-      <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
+    <div className="fixed bottom-6 right-6 w-96 bg-card rounded-lg shadow-xl flex flex-col">
+      <div className="p-4 border-b flex justify-between items-center bg-muted rounded-t-lg">
         <div className="flex items-center gap-2">
           <Bot className="w-5 h-5" />
           <h3 className="font-medium">Support Assistant</h3>
@@ -85,7 +85,11 @@ export function Chatbot() {
             className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[80%] rounded-lg p-3 ${message.sender === "user" ? "bg-blue-600 text-white" : "bg-gray-100"}`}
+              className={`max-w-[80%] rounded-lg p-3 ${
+                message.sender === "user"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted"
+              }`}
             >
               <p className="text-sm">{message.content}</p>
               <span className="text-xs opacity-70 mt-1 block">

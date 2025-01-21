@@ -55,7 +55,7 @@ const MOCK_TICKETS: Ticket[] = [
   },
 ];
 
-export default async function TicketsPage() {
+export default function TicketsPage() {
   // const supabase = createClient();
   
   // TODO: Implement Supabase query
@@ -73,15 +73,18 @@ export default async function TicketsPage() {
   const tickets = MOCK_TICKETS;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-white">Tickets</h1>
-        <Link href="/tickets/new">
-          <Button className="bg-blue-600 hover:bg-blue-700">New Ticket</Button>
-        </Link>
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-semibold">Tickets</h1>
+        <Button asChild>
+          <Link href="/tickets/new">New Ticket</Link>
+        </Button>
       </div>
-      
-      <TicketFilters />
+
+      <div className="bg-card border rounded-lg p-4 mb-6">
+        <TicketFilters />
+      </div>
+
       <TicketList tickets={tickets} />
     </div>
   );

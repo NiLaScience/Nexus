@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import Link from "next/link";
 import { BarChart2, BookOpen, Home, Inbox, Plus, Settings } from "lucide-react";
 import { Chatbot } from "@/components/chat/chatbot";
+import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -37,43 +38,43 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className="flex h-screen w-full bg-black">
+          <div className="flex h-screen w-full bg-background">
             {/* Sidebar Navigation */}
-            <aside className="w-16 bg-zinc-900 border-r border-zinc-800 h-full flex flex-col items-center py-6">
+            <aside className="w-16 bg-muted border-r border-border h-full flex flex-col items-center py-6">
               <nav className="flex flex-col gap-6">
                 <Link
                   href="/"
-                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
                 >
                   <Home className="w-5 h-5" />
                 </Link>
                 <Link
                   href="/tickets"
-                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
                 >
                   <Inbox className="w-5 h-5" />
                 </Link>
                 <Link
                   href="/tickets/new"
-                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
                 >
                   <Plus className="w-5 h-5" />
                 </Link>
                 <Link
                   href="/knowledge-base"
-                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
                 >
                   <BookOpen className="w-5 h-5" />
                 </Link>
                 <Link
                   href="/analytics"
-                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
                 >
                   <BarChart2 className="w-5 h-5" />
                 </Link>
                 <Link
                   href="/settings"
-                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
                 >
                   <Settings className="w-5 h-5" />
                 </Link>
@@ -81,9 +82,9 @@ export default function RootLayout({
             </aside>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col overflow-hidden bg-zinc-950">
+            <div className="flex-1 flex flex-col overflow-hidden bg-background">
               {/* Top Navigation */}
-              <nav className="w-full flex justify-end border-b border-zinc-800 h-16">
+              <nav className="w-full flex justify-end border-b border-border h-16">
                 <div className="flex items-center gap-4 px-6">
                   {!hasEnvVars ? null : <HeaderAuth />}
                   <ThemeSwitcher />
@@ -99,6 +100,7 @@ export default function RootLayout({
             {/* Chatbot */}
             <Chatbot />
           </div>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

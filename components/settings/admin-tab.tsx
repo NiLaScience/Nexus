@@ -44,7 +44,7 @@ export function AdminTab() {
   return (
     <div className="space-y-6">
       {/* Team Management Section */}
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-card p-6 rounded-lg shadow">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-medium">Team Management</h2>
           <Button>Create New Team</Button>
@@ -55,7 +55,7 @@ export function AdminTab() {
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-lg font-medium">{team.name}</h3>
-                  <p className="text-sm text-gray-500">{team.focus}</p>
+                  <p className="text-sm text-muted-foreground">{team.focus}</p>
                 </div>
                 <Button variant="outline" size="sm">
                   Edit Team
@@ -76,7 +76,7 @@ export function AdminTab() {
                   <h4 className="text-sm font-medium mb-2">Assigned Agents</h4>
                   <div className="space-y-1">
                     {team.agents.map((agent) => (
-                      <div key={agent} className="text-sm text-gray-600">
+                      <div key={agent} className="text-sm text-muted-foreground">
                         {agent}
                       </div>
                     ))}
@@ -86,7 +86,7 @@ export function AdminTab() {
                   <h4 className="text-sm font-medium mb-2">Assigned Clients</h4>
                   <div className="space-y-1">
                     {team.clients.map((client) => (
-                      <div key={client} className="text-sm text-gray-600">
+                      <div key={client} className="text-sm text-muted-foreground">
                         {client}
                       </div>
                     ))}
@@ -110,7 +110,7 @@ export function AdminTab() {
       </div>
 
       {/* Agent Skills Management Section */}
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-card p-6 rounded-lg shadow">
         <h2 className="text-lg font-medium mb-6">Agent Skills Management</h2>
         <div className="space-y-4">
           <div className="flex gap-4 items-center">
@@ -134,7 +134,7 @@ export function AdminTab() {
                 <Badge
                   key={skill}
                   variant="outline"
-                  className="cursor-pointer hover:bg-gray-100"
+                  className="cursor-pointer hover:bg-muted"
                 >
                   {skill}
                 </Badge>
@@ -145,7 +145,7 @@ export function AdminTab() {
       </div>
 
       {/* Client Assignment Section */}
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-card p-6 rounded-lg shadow">
         <h2 className="text-lg font-medium mb-6">Client Assignment</h2>
         <div className="space-y-4">
           <div className="flex gap-4">

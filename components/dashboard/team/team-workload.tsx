@@ -26,29 +26,29 @@ const MOCK_AGENTS = [
 
 export function TeamWorkload() {
   return (
-    <Card className="bg-zinc-900 border-zinc-800">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-white">Team Workload</CardTitle>
-        <CardDescription className="text-zinc-400">
-          Current ticket distribution
-        </CardDescription>
+        <CardTitle>Team Workload</CardTitle>
+        <CardDescription>Current ticket distribution</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           {MOCK_AGENTS.map((agent, index) => (
             <div key={index} className="space-y-2">
-              <div className="flex justify-between text-sm text-zinc-400">
+              <div className="flex justify-between text-sm text-muted-foreground">
                 <span className="flex items-center gap-2">
                   <span
-                    className={`w-2 h-2 rounded-full ${agent.available ? "bg-green-500" : "bg-zinc-600"}`}
+                    className={`w-2 h-2 rounded-full ${
+                      agent.available ? "bg-success" : "bg-muted"
+                    }`}
                   />
                   {agent.agent}
                 </span>
                 <span>{agent.tickets} tickets</span>
               </div>
-              <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full transition-all duration-500"
+                  className="h-full bg-gradient-to-r from-primary to-primary/60 rounded-full transition-all duration-500"
                   style={{
                     width: `${(agent.tickets / 15) * 100}%`,
                   }}

@@ -27,25 +27,21 @@ const MOCK_ARTICLES = [
 
 export function TrendingArticles() {
   return (
-    <Card className="bg-zinc-900 border-zinc-800">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-white">Trending Articles</CardTitle>
-        <CardDescription className="text-zinc-400">
-          Most viewed knowledge base articles
-        </CardDescription>
+        <CardTitle>Trending Articles</CardTitle>
+        <CardDescription>Most viewed knowledge base articles</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           {MOCK_ARTICLES.map((article, index) => (
             <div
               key={index}
-              className="flex items-center justify-between hover:bg-zinc-800/50 p-3 rounded-lg cursor-pointer"
+              className="flex items-center justify-between hover:bg-muted p-3 rounded-lg cursor-pointer transition-colors duration-200"
             >
               <div className="space-y-1">
-                <div className="font-medium text-white">
-                  {article.title}
-                </div>
-                <div className="flex items-center gap-3 text-sm text-zinc-400">
+                <div className="font-medium">{article.title}</div>
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
                   <span>{article.views}</span>
                   <span>•</span>
                   <span className="flex items-center gap-1">
@@ -54,7 +50,7 @@ export function TrendingArticles() {
                   </span>
                 </div>
               </div>
-              <ArrowRight className="w-4 h-4 text-gray-400" />
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
             </div>
           ))}
         </div>

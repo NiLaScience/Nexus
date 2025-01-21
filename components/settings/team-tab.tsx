@@ -30,7 +30,7 @@ const MOCK_TEAM_MEMBERS = [
 
 export function TeamTab() {
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
+    <div className="bg-card p-6 rounded-lg shadow">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-lg font-medium">Team Members</h2>
         <Button>Add Member</Button>
@@ -43,8 +43,8 @@ export function TeamTab() {
           >
             <div className="space-y-1">
               <h3 className="font-medium">{member.name}</h3>
-              <p className="text-sm text-gray-500">{member.email}</p>
-              <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
+              <p className="text-sm text-muted-foreground">{member.email}</p>
+              <span className="inline-block px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
                 {member.role}
               </span>
             </div>

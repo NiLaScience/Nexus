@@ -20,43 +20,43 @@ interface TicketDetailsProps {
 
 export function TicketDetails({ ticketId, requester, assignedTo }: TicketDetailsProps) {
   return (
-    <Card className="bg-zinc-900 border-zinc-800">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-white">Ticket Details</CardTitle>
+        <CardTitle>Ticket Details</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <div className="text-sm font-medium text-zinc-400">Ticket ID</div>
-          <div className="text-white">#{String(ticketId).padStart(5, '0')}</div>
+          <div className="text-sm font-medium text-muted-foreground">Ticket ID</div>
+          <div>#{String(ticketId).padStart(5, '0')}</div>
         </div>
         
         <div>
-          <div className="text-sm font-medium text-zinc-400">Requester</div>
+          <div className="text-sm font-medium text-muted-foreground">Requester</div>
           <div className="flex items-center gap-2 mt-1">
-            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center">
-              <User className="w-4 h-4 text-zinc-400" />
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+              <User className="w-4 h-4 text-muted-foreground" />
             </div>
             <div>
-              <div className="text-white">{requester.name}</div>
-              <div className="text-sm text-zinc-400">{requester.email}</div>
+              <div>{requester.name}</div>
+              <div className="text-sm text-muted-foreground">{requester.email}</div>
             </div>
           </div>
         </div>
 
         <div>
-          <div className="text-sm font-medium text-zinc-400">Assigned To</div>
+          <div className="text-sm font-medium text-muted-foreground">Assigned To</div>
           {assignedTo ? (
             <div className="flex items-center gap-2 mt-1">
-              <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center">
-                <User className="w-4 h-4 text-zinc-400" />
+              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                <User className="w-4 h-4 text-muted-foreground" />
               </div>
               <div>
-                <div className="text-white">{assignedTo.name}</div>
-                <div className="text-sm text-zinc-400">{assignedTo.email}</div>
+                <div>{assignedTo.name}</div>
+                <div className="text-sm text-muted-foreground">{assignedTo.email}</div>
               </div>
             </div>
           ) : (
-            <div className="text-sm text-zinc-500 mt-1">Not assigned</div>
+            <div className="text-sm text-muted-foreground mt-1">Not assigned</div>
           )}
         </div>
       </CardContent>

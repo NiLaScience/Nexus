@@ -34,30 +34,39 @@ interface MetricsCardsProps {
 export function MetricsCards({ metrics }: MetricsCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <MetricCard
-        title="Total Tickets"
-        value={metrics.totalTickets.value}
-        change={{
-          value: metrics.totalTickets.change,
-          isPositive: !metrics.totalTickets.change.startsWith("-"),
-        }}
-      />
-      <MetricCard
-        title="Avg Response Time"
-        value={metrics.avgResponseTime.value}
-        change={{
-          value: metrics.avgResponseTime.change,
-          isPositive: metrics.avgResponseTime.change.startsWith("-"),
-        }}
-      />
-      <MetricCard
-        title="Resolution Rate"
-        value={metrics.resolutionRate.value}
-        change={{
-          value: metrics.resolutionRate.change,
-          isPositive: !metrics.resolutionRate.change.startsWith("-"),
-        }}
-      />
+      <div className="bg-card p-6 rounded-lg shadow">
+        <h3 className="text-sm font-medium text-muted-foreground mb-2">
+          Total Tickets
+        </h3>
+        <div className="flex items-baseline">
+          <span className="text-3xl font-bold">{metrics.totalTickets.value}</span>
+          <span className={`ml-2 text-sm ${metrics.totalTickets.change.startsWith('+') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+            {metrics.totalTickets.change}
+          </span>
+        </div>
+      </div>
+      <div className="bg-card p-6 rounded-lg shadow">
+        <h3 className="text-sm font-medium text-muted-foreground mb-2">
+          Avg Response Time
+        </h3>
+        <div className="flex items-baseline">
+          <span className="text-3xl font-bold">{metrics.avgResponseTime.value}</span>
+          <span className={`ml-2 text-sm ${metrics.avgResponseTime.change.startsWith('+') ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+            {metrics.avgResponseTime.change}
+          </span>
+        </div>
+      </div>
+      <div className="bg-card p-6 rounded-lg shadow">
+        <h3 className="text-sm font-medium text-muted-foreground mb-2">
+          Resolution Rate
+        </h3>
+        <div className="flex items-baseline">
+          <span className="text-3xl font-bold">{metrics.resolutionRate.value}</span>
+          <span className={`ml-2 text-sm ${metrics.resolutionRate.change.startsWith('+') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+            {metrics.resolutionRate.change}
+          </span>
+        </div>
+      </div>
     </div>
   );
 } 

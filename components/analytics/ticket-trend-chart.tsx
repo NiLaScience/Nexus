@@ -10,27 +10,38 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-interface TicketTrendData {
-  name: string;
-  tickets: number;
-}
-
 interface TicketTrendChartProps {
-  data: TicketTrendData[];
+  data: Array<{
+    name: string;
+    tickets: number;
+  }>;
 }
 
 export function TicketTrendChart({ data }: TicketTrendChartProps) {
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
+    <div className="bg-card p-6 rounded-lg shadow">
       <h3 className="text-base font-medium mb-4">Ticket Trend</h3>
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="tickets" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <XAxis
+              dataKey="name"
+              className="text-muted-foreground text-xs"
+              tick={{ fill: 'currentColor' }}
+            />
+            <YAxis
+              className="text-muted-foreground text-xs"
+              tick={{ fill: 'currentColor' }}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'hsl(var(--card))',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))',
+              }}
+            />
+            <Bar dataKey="tickets" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

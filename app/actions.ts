@@ -4,6 +4,7 @@ import { encodedRedirect } from "@/utils/utils";
 import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidateTag } from "next/cache";
 
 export const signUpAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
@@ -171,3 +172,35 @@ export const signOutAction = async () => {
   await supabase.auth.signOut();
   return redirect("/sign-in");
 };
+
+export type ProfileUpdateData = {
+  full_name: string;
+  role: string;
+};
+
+export async function updateProfileAction(data: ProfileUpdateData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated" };
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      full_name: data.full_name,
+      role: data.role,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', user.id);
+
+  if (error) {
+    console.error('Error updating profile:', error);
+    return { error: "Failed to update profile" };
+  }
+
+  // Use revalidateTag instead of revalidatePath
+  revalidateTag('profile');
+  return { success: true };
+}

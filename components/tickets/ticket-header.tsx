@@ -14,24 +14,23 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { TicketStatus } from "@/types/ticket";
 
 interface TicketHeaderProps {
   created: string;
   tags: string[];
-  status: TicketStatus;
+  status: "open" | "in_progress" | "closed";
 }
 
 export function TicketHeader({ created, tags, status }: TicketHeaderProps) {
   return (
     <div className="flex justify-between items-start">
       <div>
-        <span className="text-zinc-400">Created on {created}</span>
+        <span className="text-muted-foreground">Created on {created}</span>
         <div className="flex gap-2 mt-2">
           {tags.map((tag) => (
             <span
               key={tag}
-              className="bg-zinc-800 text-zinc-400 px-2 py-1 rounded text-xs"
+              className="bg-muted text-muted-foreground px-2 py-1 rounded text-xs"
             >
               {tag}
             </span>
@@ -41,38 +40,36 @@ export function TicketHeader({ created, tags, status }: TicketHeaderProps) {
       <div className="flex gap-2">
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="border-zinc-800 hover:bg-zinc-800">
+            <Button variant="outline" size="sm">
               <UserPlus className="w-4 h-4 mr-2" />
               Reassign
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80 bg-zinc-900 border-zinc-800">
+          <PopoverContent className="w-80">
             <div className="space-y-4">
-              <h4 className="font-medium text-white">Reassign Ticket</h4>
+              <h4 className="font-medium">Reassign Ticket</h4>
               <Select>
-                <SelectTrigger className="bg-zinc-900 border-zinc-800">
+                <SelectTrigger>
                   <SelectValue placeholder="Select agent" />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
+                <SelectContent>
                   <SelectItem value="agent1">Sarah Wilson</SelectItem>
                   <SelectItem value="agent2">Mike Johnson</SelectItem>
                   <SelectItem value="agent3">Emma Davis</SelectItem>
                 </SelectContent>
               </Select>
               <div className="flex justify-end">
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                  Reassign
-                </Button>
+                <Button size="sm">Reassign</Button>
               </div>
             </div>
           </PopoverContent>
         </Popover>
         
         <Select defaultValue={status}>
-          <SelectTrigger className="w-[140px] bg-zinc-900 border-zinc-800">
+          <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
-          <SelectContent className="bg-zinc-900 border-zinc-800">
+          <SelectContent>
             <SelectItem value="open">Open</SelectItem>
             <SelectItem value="in_progress">In Progress</SelectItem>
             <SelectItem value="closed">Closed</SelectItem>

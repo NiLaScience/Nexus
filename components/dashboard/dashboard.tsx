@@ -10,8 +10,8 @@ export function Dashboard() {
   return (
     <div className="p-8 space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-medium text-white">Dashboard</h1>
-        <Button className="bg-blue-600 hover:bg-blue-700" asChild>
+        <h1 className="text-2xl font-medium">Dashboard</h1>
+        <Button className="bg-primary hover:bg-primary/90" asChild>
           <Link href="/tickets/new">New Ticket</Link>
         </Button>
       </div>

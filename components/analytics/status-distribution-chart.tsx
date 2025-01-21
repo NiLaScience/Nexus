@@ -8,19 +8,23 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-interface StatusData {
-  name: string;
-  value: number;
-  color: string;
+interface StatusDistributionChartProps {
+  data: Array<{
+    name: string;
+    value: number;
+    color: string;
+  }>;
 }
 
-interface StatusDistributionChartProps {
-  data: StatusData[];
-}
+const COLORS = {
+  Open: "hsl(var(--success))",
+  "In Progress": "hsl(var(--primary))",
+  Closed: "hsl(var(--muted))",
+};
 
 export function StatusDistributionChart({ data }: StatusDistributionChartProps) {
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
+    <div className="bg-card p-6 rounded-lg shadow">
       <h3 className="text-base font-medium mb-4">Status Distribution</h3>
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
@@ -33,10 +37,16 @@ export function StatusDistributionChart({ data }: StatusDistributionChartProps) 
               dataKey="value"
             >
               {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
+                <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
               ))}
             </Pie>
-            <Tooltip />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'hsl(var(--card))',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))',
+              }}
+            />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -46,10 +56,10 @@ export function StatusDistributionChart({ data }: StatusDistributionChartProps) 
             <div
               className="w-3 h-3 rounded-full"
               style={{
-                backgroundColor: status.color,
+                backgroundColor: COLORS[status.name as keyof typeof COLORS],
               }}
             />
-            <span className="text-sm text-gray-600">{status.name}</span>
+            <span className="text-sm text-muted-foreground">{status.name}</span>
           </div>
         ))}
       </div>

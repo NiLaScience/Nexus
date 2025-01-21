@@ -32,16 +32,16 @@ export function ArticleList() {
   return (
     <div className="space-y-4">
       {MOCK_ARTICLES.map((article) => (
-        <div key={article.id} className="bg-white p-4 rounded-lg shadow">
+        <div key={article.id} className="bg-card p-4 rounded-lg shadow">
           <div className="flex justify-between items-start mb-2">
             <div>
-              <span className="text-sm text-blue-600 font-medium">
+              <span className="text-sm text-primary font-medium">
                 {article.category}
               </span>
               <h3 className="font-medium">
                 <Link
                   href={`/knowledge-base/article/${article.id}`}
-                  className="hover:text-blue-600"
+                  className="hover:text-primary"
                 >
                   {article.title}
                 </Link>
@@ -51,8 +51,8 @@ export function ArticleList() {
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-          <p className="text-gray-600 text-sm mb-2">{article.excerpt}</p>
-          <div className="text-xs text-gray-500">
+          <p className="text-muted-foreground text-sm mb-2">{article.excerpt}</p>
+          <div className="text-xs text-muted-foreground">
             {article.views} views
           </div>
         </div>

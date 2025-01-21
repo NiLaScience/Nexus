@@ -19,10 +19,10 @@ export function CustomerSatisfaction() {
   const totalRatings = RATINGS.reduce((sum, { count }) => sum + count, 0);
 
   return (
-    <Card className="bg-zinc-900 border-zinc-800">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-white">Customer Satisfaction</CardTitle>
-        <CardDescription className="text-zinc-400">Recent ratings</CardDescription>
+        <CardTitle>Customer Satisfaction</CardTitle>
+        <CardDescription>Recent ratings</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -32,19 +32,19 @@ export function CustomerSatisfaction() {
                 {Array.from({ length: rating.rating }).map((_, i) => (
                   <Star
                     key={i}
-                    className="w-4 h-4 fill-yellow-400 text-yellow-400"
+                    className="w-4 h-4 fill-primary text-primary"
                   />
                 ))}
               </div>
-              <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-yellow-400 rounded-full"
+                  className="h-full bg-primary rounded-full"
                   style={{
                     width: `${(rating.count / totalRatings) * 100}%`,
                   }}
                 />
               </div>
-              <div className="w-12 text-sm text-zinc-400">{rating.count}</div>
+              <div className="w-12 text-sm text-muted-foreground">{rating.count}</div>
             </div>
           ))}
         </div>

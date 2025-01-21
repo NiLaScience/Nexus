@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import {
   AlertCircle,
   ArrowRight,
@@ -19,13 +19,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
 export function Dashboard() {
   return (
     <div className="p-8 space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-medium text-white">Dashboard</h1>
-        <Button className="bg-blue-600 hover:bg-blue-700" asChild>
-          <Link to="/new">New Ticket</Link>
+        <h1 className="text-2xl font-medium">Dashboard</h1>
+        <Button className="bg-primary hover:bg-primary/90" asChild>
+          <Link href="/tickets/new">New Ticket</Link>
         </Button>
       </div>
       {/* Quick Stats */}
@@ -59,11 +60,11 @@ export function Dashboard() {
             <CardTitle className="text-sm font-normal text-zinc-400">
               CSAT Score
             </CardTitle>
-            <ThumbsUp className="h-4 w-4 text-green-500" />
+            <ThumbsUp className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-medium">4.8</div>
-            <p className="text-xs text-zinc-500">Last 30 days</p>
+            <p className="text-xs text-muted-foreground">Last 30 days</p>
           </CardContent>
         </Card>
         <Card className="bg-zinc-900 border-zinc-800 text-white">
@@ -71,11 +72,11 @@ export function Dashboard() {
             <CardTitle className="text-sm font-normal text-zinc-400">
               Unassigned
             </CardTitle>
-            <Users className="h-4 w-4 text-orange-500" />
+            <Users className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-medium">3</div>
-            <p className="text-xs text-zinc-500">Needs attention</p>
+            <p className="text-xs text-muted-foreground">Needs attention</p>
           </CardContent>
         </Card>
       </div>
@@ -127,7 +128,11 @@ export function Dashboard() {
                       </div>
                     </div>
                     <span
-                      className={`px-2 py-1 rounded text-xs ${activity.priority === "high" ? "bg-red-500/20 text-red-400" : "bg-blue-500/20 text-blue-400"}`}
+                      className={`px-2 py-1 rounded text-xs ${
+                        activity.priority === "high"
+                          ? "bg-destructive/20 text-destructive"
+                          : "bg-primary/20 text-primary"
+                      }`}
                     >
                       {activity.priority}
                     </span>
