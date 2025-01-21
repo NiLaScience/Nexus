@@ -39,24 +39,28 @@ export const MOCK_MESSAGES: Message[] = [
 
 export const MOCK_TIMELINE: TimelineEvent[] = [
   {
+    id: 1,
     type: "created",
     date: "Oct 20, 2023 09:15 AM",
     user: "John Doe",
     description: "Ticket created",
   },
   {
+    id: 2,
     type: "assigned",
     date: "Oct 20, 2023 09:30 AM",
     user: "System",
     description: "Assigned to Agent Smith",
   },
   {
+    id: 3,
     type: "status_change",
     date: "Oct 20, 2023 10:00 AM",
     user: "Agent Smith",
     description: "Status changed to In Progress",
   },
   {
+    id: 4,
     type: "comment",
     date: "Oct 20, 2023 10:15 AM",
     user: "Agent Smith",

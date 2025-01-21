@@ -17,6 +17,17 @@ For AWS Amplify deployment:
 3. Configure proper image domains if using Next.js Image component
 4. Cache node_modules AND .next/cache in Amplify for faster builds
 
+### Supabase Cookie Store in Next.js 14+
+The cookie store API changed in Next.js 14+:
+1. `cookies()` now returns a Promise, so need to await it
+2. `set()` and `delete()` now take a single options object instead of separate arguments
+3. Example:
+   ```ts
+   const cookieStore = await cookies();
+   cookieStore.set({ name, value, ...options });
+   cookieStore.delete({ name, ...options });
+   ```
+
 Note to self: Stop trying random type combinations when stuck! Instead:
 1. Check working examples in codebase
 2. Look for patterns in auth/core pages

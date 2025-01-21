@@ -42,7 +42,6 @@ export default async function TicketDetailPage(props: {
               created={ticket.created}
               tags={ticket.tags}
               status={ticket.status}
-              ticketId={ticketId}
             />
             <p className="text-zinc-400 mt-4">{ticket.description}</p>
           </div>
