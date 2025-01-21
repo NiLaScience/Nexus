@@ -1,4 +1,6 @@
-import { Database } from "@/types/supabase";
+'use server';
+
+import { createClient } from "@/utils/supabase/server";
 
 export type TicketMessage = {
   id: string;
@@ -21,120 +23,99 @@ export type AddMessageParams = {
 };
 
 export async function getTicketMessagesAction(ticketId: string) {
-  const supabase = createServerActionClient<Database>({ cookies });
+  const supabase = await createClient();
 
   try {
     const { data: messages, error } = await supabase
-      .from("ticket_messages")
+      .from('ticket_messages')
       .select(`
-        *,
-        author:profiles(
-          id,
-          full_name,
-          role
-        )
+        id,
+        content,
+        created_at,
+        is_internal,
+        source,
+        author:author_id(id, full_name, role)
       `)
-      .eq("ticket_id", ticketId)
-      .order("created_at", { ascending: true });
+      .eq('ticket_id', ticketId)
+      .order('created_at', { ascending: true });
 
     if (error) {
-      throw error;
+      console.error('Error fetching messages:', error);
+      return { error: 'Failed to fetch messages' };
     }
 
-    return { messages, error: null };
+    return { messages };
   } catch (error) {
-    console.error("Error fetching ticket messages:", error);
-    return {
-      messages: null,
-      error: "Failed to fetch ticket messages. Please try again."
-    };
+    console.error('Error in getTicketMessagesAction:', error);
+    return { error: 'Failed to fetch messages' };
   }
 }
 
 export async function addMessageAction({ ticketId, content, isInternal = false }: AddMessageParams) {
-  const supabase = createServerActionClient<Database>({ cookies });
+  const supabase = await createClient();
 
   try {
     // Validate content
     if (!content?.trim()) {
-      throw new Error("Message content cannot be empty");
+      return { error: 'Message content is required' };
     }
 
-    // Get current user's ID
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      throw new Error("Not authenticated");
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { error: 'Not authenticated' };
     }
 
-    const { data: message, error } = await supabase
-      .from("ticket_messages")
+    // Add the message
+    const { error: insertError } = await supabase
+      .from('ticket_messages')
       .insert({
         ticket_id: ticketId,
         author_id: user.id,
         content: content.trim(),
-        source: "web",
-        is_internal: isInternal
-      })
-      .select(`
-        *,
-        author:profiles(
-          id,
-          full_name,
-          role
-        )
-      `)
-      .single();
+        is_internal: isInternal,
+        source: 'web'
+      });
 
-    if (error) {
-      throw error;
+    if (insertError) {
+      console.error('Error adding message:', insertError);
+      return { error: 'Failed to add message' };
     }
 
-    return { message, error: null };
+    return { success: true };
   } catch (error) {
-    console.error("Error adding ticket message:", error);
-    return {
-      message: null,
-      error: error instanceof Error ? error.message : "Failed to add message. Please try again."
-    };
+    console.error('Error in addMessageAction:', error);
+    return { error: 'Failed to add message' };
   }
 }
 
 export async function getInternalNotesAction(ticketId: string) {
-  const supabase = await createServerActionClient<Database>({ cookies });
+  const supabase = await createClient();
 
   try {
     console.log('Fetching internal notes for ticket:', ticketId);
-    
-    const { data: messages, error } = await supabase
-      .from("ticket_messages")
+    const { data: notes, error } = await supabase
+      .from('ticket_messages')
       .select(`
         id,
-        ticket_id,
         content,
         created_at,
-        author:profiles!ticket_messages_author_id_fkey(
-          id,
-          full_name,
-          role
-        )
+        source,
+        author:author_id(id, full_name, role)
       `)
-      .eq("ticket_id", ticketId)
-      .eq("is_internal", true)
-      .order("created_at", { ascending: true });
+      .eq('ticket_id', ticketId)
+      .eq('is_internal', true)
+      .order('created_at', { ascending: true });
 
     if (error) {
       console.error('Error fetching internal notes:', error);
-      throw error;
+      return { error: 'Failed to fetch internal notes' };
     }
 
-    console.log('Internal notes found:', messages?.length || 0);
-    return { messages, error: null };
+    return { notes };
   } catch (error) {
-    console.error("Error fetching internal notes:", error);
-    return {
-      messages: null,
-      error: "Failed to fetch internal notes. Please try again."
-    };
+    console.error('Error in getInternalNotesAction:', error);
+    return { error: 'Failed to fetch internal notes' };
   }
 }
 

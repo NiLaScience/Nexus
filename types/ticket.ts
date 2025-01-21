@@ -1,26 +1,28 @@
 export type TicketStatus = 'open' | 'in_progress' | 'closed';
 
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: 'customer' | 'agent' | 'admin';
 }
 
 export interface Ticket {
-  id: number;
+  id: string;
   title: string;
   description: string;
   status: TicketStatus;
   priority: 'low' | 'medium' | 'high';
   created: string;
-  updated: string;
   tags: string[];
+  organization: string;
   requester: {
+    id: string;
     name: string;
     email: string;
   };
   assignedTo?: {
+    id: string;
     name: string;
     email: string;
   };

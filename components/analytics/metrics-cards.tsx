@@ -2,22 +2,26 @@
 
 interface MetricCardProps {
   title: string;
-  value: string;
-  change: {
-    value: string;
-    isPositive: boolean;
+  value: string | number;
+  change?: {
+    value: number;
+    trend: 'up' | 'down';
   };
 }
 
-function MetricCard({ title, value, change }: MetricCardProps) {
+export function MetricCard({ title, value, change }: MetricCardProps) {
   return (
     <div className="bg-white p-6 rounded-lg shadow">
       <h3 className="text-sm font-medium text-gray-500 mb-2">{title}</h3>
       <div className="flex items-baseline">
-        <span className="text-3xl font-bold">{value}</span>
-        <span className={`ml-2 text-sm ${change.isPositive ? "text-green-600" : "text-red-600"}`}>
-          {change.value}
-        </span>
+        <p className="text-2xl font-semibold text-gray-900">{value}</p>
+        {change && (
+          <p className={`ml-2 flex items-baseline text-sm font-semibold ${
+            change.trend === 'up' ? 'text-green-600' : 'text-red-600'
+          }`}>
+            <span>{change.value}%</span>
+          </p>
+        )}
       </div>
     </div>
   );

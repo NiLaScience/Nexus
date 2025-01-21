@@ -44,12 +44,10 @@ export async function updateTicketAction(
     );
 
     // Update the ticket
-    const { data, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from("tickets")
       .update(updateData)
-      .eq("id", ticketId)
-      .select()
-      .single();
+      .eq("id", ticketId);
 
     if (updateError) {
       console.error('Supabase update error:', {

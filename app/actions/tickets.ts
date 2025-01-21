@@ -1,8 +1,6 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
-import { Ticket } from "@/types/ticket";
 
 export type TicketFilters = {
   status?: string[];

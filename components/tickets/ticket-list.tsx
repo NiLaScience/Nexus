@@ -1,26 +1,7 @@
 "use client";
 
 import Link from "next/link";
-
-interface Ticket {
-  id: number;
-  title: string;
-  status: "open" | "in_progress" | "closed";
-  priority: string;
-  created: string;
-  tags: string[];
-  organization: string;
-  requester: {
-    id: string;
-    name: string;
-    email: string;
-  };
-  assignedTo?: {
-    id: string;
-    name: string;
-    email: string;
-  };
-}
+import { Ticket } from "@/types/ticket";
 
 interface TicketListProps {
   tickets: Ticket[];
