@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,12 +21,11 @@ import {
 import { getMockTicket } from "@/lib/mock-ticket-data";
 
 interface TicketPageProps {
-  params: {
-    id: string;
-  };
+  params: Promise<{ id: string }>;
 }
 
-export default function TicketPage({ params: { id } }: TicketPageProps) {
+export default function TicketPage({ params }: TicketPageProps) {
+  const { id } = React.use(params);
   const ticketId = parseInt(id);
   const ticket = getMockTicket(ticketId);
 
