@@ -8,6 +8,7 @@ import { InternalNotes } from "@/components/tickets/internal-notes";
 import { RelatedTickets } from "@/components/tickets/related-tickets";
 import { AttachmentsList } from "@/components/tickets/attachments-list";
 import { TicketDetails } from "@/components/tickets/ticket-details";
+import { TicketRating } from "@/components/tickets/ticket-rating";
 import { createClient } from "@/utils/supabase/server";
 import { getTicketMessagesAction, getInternalNotesAction } from "@/app/actions/tickets/messages.server";
 import { getTicketEventsAction } from "@/app/actions/tickets/events.server";
@@ -113,6 +114,11 @@ export default async function TicketPage({ params }: any) {
           <TicketTimeline events={eventsResult.events || []} />
           <AttachmentsList
             ticketId={id}
+          />
+          <TicketRating
+            ticketId={id}
+            status={ticket.status}
+            customerId={ticket.customer?.id}
           />
         </div>
       </div>

@@ -10,8 +10,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getDashboardStatsAction } from "@/app/actions/dashboard.server";
+import { Suspense } from "react";
 
-export function QuickStats() {
+async function QuickStatsContent() {
+  const stats = await getDashboardStatsAction();
+  
+  if (!stats) {
+    return null;
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
       <Card>
@@ -22,8 +30,10 @@ export function QuickStats() {
           <Flag className="h-4 w-4 text-destructive" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-medium">12</div>
-          <p className="text-xs text-muted-foreground">4 high priority</p>
+          <div className="text-2xl font-medium">{stats.openTickets.total}</div>
+          <p className="text-xs text-muted-foreground">
+            {stats.openTickets.highPriority} high priority
+          </p>
         </CardContent>
       </Card>
 
@@ -35,8 +45,10 @@ export function QuickStats() {
           <Timer className="h-4 w-4 text-primary" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-medium">1.8h</div>
-          <p className="text-xs text-success">↓ 0.3h from last week</p>
+          <div className="text-2xl font-medium">{stats.avgResponseTime.value.toFixed(1)}h</div>
+          <p className={`text-xs ${stats.avgResponseTime.change < 0 ? "text-success" : "text-destructive"}`}>
+            {stats.avgResponseTime.change > 0 ? "↑" : "↓"} {Math.abs(stats.avgResponseTime.change)}h from last week
+          </p>
         </CardContent>
       </Card>
 
@@ -48,8 +60,8 @@ export function QuickStats() {
           <ThumbsUp className="h-4 w-4 text-success" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-medium">4.8</div>
-          <p className="text-xs text-muted-foreground">Last 30 days</p>
+          <div className="text-2xl font-medium">{stats.csatScore.value}</div>
+          <p className="text-xs text-muted-foreground">{stats.csatScore.period}</p>
         </CardContent>
       </Card>
 
@@ -61,10 +73,20 @@ export function QuickStats() {
           <Users className="h-4 w-4 text-warning" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-medium">3</div>
-          <p className="text-xs text-muted-foreground">Needs attention</p>
+          <div className="text-2xl font-medium">{stats.unassigned.total}</div>
+          <p className="text-xs text-muted-foreground">
+            {stats.unassigned.total > 0 ? "Needs attention" : "All tickets assigned"}
+          </p>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export function QuickStats() {
+  return (
+    <Suspense fallback={<div>Loading stats...</div>}>
+      <QuickStatsContent />
+    </Suspense>
   );
 } 
