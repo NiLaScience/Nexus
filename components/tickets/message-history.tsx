@@ -23,7 +23,8 @@ import { formatDistanceToNow } from "date-fns";
 import { uploadAttachmentAction, getAttachmentUrlAction } from "@/app/actions/tickets/attachments";
 import { createClient } from "@/utils/supabase/client";
 import { listTemplates, type ResponseTemplate } from "@/app/actions/response-templates";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { incrementUsageCount } from "@/app/actions/response-templates";
 
 interface MessageHistoryProps {
   ticketId: string;
@@ -55,10 +56,11 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
             variant: "destructive",
           });
         } else {
-          setTemplates(result.templates || []);
+          setTemplates(result.templates ?? []);
         }
       } catch (error) {
         console.error('Error loading templates:', error);
+        setTemplates([]);
       } finally {
         setIsLoadingTemplates(false);
       }
@@ -79,6 +81,18 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
 
   const handleTemplateSelect = async (template: ResponseTemplate) => {
     setMessageText(template.content);
+    try {
+      const result = await incrementUsageCount(template.id);
+      if (result.error) {
+        toast({
+          title: "Warning",
+          description: "Failed to update template usage count",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating template usage count:', error);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -191,10 +205,10 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
     }
   };
 
-  const filteredTemplates = templates.filter(template => 
+  const filteredTemplates = templates?.filter(template => 
     template.name.toLowerCase().includes(templateSearch.toLowerCase()) ||
     template.content.toLowerCase().includes(templateSearch.toLowerCase())
-  );
+  ) ?? [];
 
   return (
     <Card>
@@ -249,81 +263,88 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
             ))
           )}
         </div>
-        <div className="space-y-4">
+        <div className="flex gap-2">
           <Textarea
             placeholder="Type your message..."
-            className="min-h-[100px]"
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
+            className="min-h-[100px]"
           />
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <Input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                multiple
-                onChange={handleFileSelect}
-                accept="image/*,.pdf,.txt,.doc,.docx"
-              />
-              <Button 
-                variant="outline" 
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Paperclip className="w-4 h-4 mr-2" /> Attach Files
-              </Button>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline">
-                    <Sparkles className="w-4 h-4 mr-2" /> Use Template
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0" align="start">
-                  <Command>
-                    <CommandInput 
-                      placeholder="Search templates..." 
-                      value={templateSearch}
-                      onValueChange={setTemplateSearch}
-                    />
+          <div className="flex flex-col gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" className="shrink-0">
+                  <Sparkles className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0" side="top" align="start">
+                <Command>
+                  <CommandInput 
+                    placeholder="Search templates..." 
+                    value={templateSearch}
+                    onValueChange={setTemplateSearch}
+                  />
+                  <CommandList>
                     <CommandEmpty>No templates found.</CommandEmpty>
-                    <CommandGroup className="max-h-[300px] overflow-y-auto">
+                    <CommandGroup>
                       {filteredTemplates.map((template) => (
                         <CommandItem
                           key={template.id}
                           value={template.name}
                           onSelect={() => handleTemplateSelect(template)}
-                          className="flex flex-col items-start gap-1 p-2"
                         >
-                          <div className="font-medium">{template.name}</div>
-                          <div className="text-sm text-muted-foreground line-clamp-2">
-                            {template.content}
-                          </div>
+                          {template.name}
                         </CommandItem>
                       ))}
                     </CommandGroup>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              {selectedFiles.length > 0 && (
-                <span className="text-sm text-muted-foreground">
-                  {selectedFiles.length} file(s) selected
-                </span>
-              )}
-            </div>
-            <Button 
-              onClick={handleSendMessage} 
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <input
+              type="file"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+              ref={fileInputRef}
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+            <Button
+              onClick={handleSendMessage}
               disabled={isSending || (!messageText.trim() && selectedFiles.length === 0)}
             >
-              {isSending ? "Sending..." : "Send"}
+              Send
             </Button>
           </div>
         </div>
+        {selectedFiles.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {selectedFiles.map((file, index) => (
+              <div key={index} className="flex items-center gap-2 p-2 rounded bg-muted/50">
+                <Paperclip className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm flex-1">{file.name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedFiles(selectedFiles.filter((_, i) => i !== index));
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = '';
+                    }
+                  }}
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
