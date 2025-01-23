@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
-import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
 export type ResponseTemplate = {

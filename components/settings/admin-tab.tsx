@@ -2,15 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -21,46 +13,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { getTeamsAction } from "@/app/actions/teams.server";
-import { getAgentsAction } from "@/app/actions/tickets.server";
-import { Suspense } from "react";
 import { TeamManagement } from "./team-management";
 import { getSkillsAction, addSkillAction } from "@/app/actions/skills.server";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, Wrench, MessageSquare } from "lucide-react";
 import Link from "next/link";
-
-const MOCK_TEAMS = [
-  {
-    id: 1,
-    name: "Technical Support",
-    focus: "Technical Issues",
-    agents: ["Sarah Wilson", "Emma Davis"],
-    clients: ["Acme Corp", "TechStart Inc"],
-    skills: ["JavaScript", "React", "Node.js"],
-  },
-  {
-    id: 2,
-    name: "Customer Success",
-    focus: "Account Management",
-    agents: ["Mike Johnson"],
-    clients: ["Global Industries", "Local Business LLC"],
-    skills: ["Communication", "Project Management"],
-  },
-];
-
-const COMMON_SKILLS = [
-  "JavaScript",
-  "React",
-  "Node.js",
-  "Customer Service",
-  "Project Management",
-  "Communication",
-  "Problem Solving",
-  "Technical Support",
-];
 
 export function AdminTab() {
   const [skills, setSkills] = useState<any[]>([]);

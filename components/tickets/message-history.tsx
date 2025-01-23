@@ -15,7 +15,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
 import { type TicketMessage } from "@/app/actions/tickets/messages";
 import { addMessageAction } from "@/app/actions/tickets/messages.server";
 import { useToast } from "@/components/ui/use-toast";
@@ -37,7 +36,6 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
   const [isSending, setIsSending] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [templates, setTemplates] = useState<ResponseTemplate[]>([]);
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -46,7 +44,6 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
   // Load templates
   useEffect(() => {
     async function loadTemplates() {
-      setIsLoadingTemplates(true);
       try {
         const result = await listTemplates();
         if (result.error) {
@@ -61,8 +58,6 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
       } catch (error) {
         console.error('Error loading templates:', error);
         setTemplates([]);
-      } finally {
-        setIsLoadingTemplates(false);
       }
     }
     loadTemplates();
