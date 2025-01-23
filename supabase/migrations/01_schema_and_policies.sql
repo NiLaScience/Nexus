@@ -10,6 +10,8 @@ create table profiles (
     id uuid primary key references auth.users(id),
     role text not null check (role in ('customer', 'agent', 'admin')),
     full_name text not null,
+    email text not null,
+    is_active boolean not null default true,
     avatar_url text,
     organization_id uuid,  -- references organizations.id after organizations table is created
     created_at timestamptz not null default now(),
@@ -629,6 +631,7 @@ drop policy if exists "Users can read their own profile" on profiles;
 drop policy if exists "Users can create their own profile" on profiles;
 drop policy if exists "Users can update their own profile" on profiles;
 drop policy if exists "Admins can read all profiles" on profiles;
+drop policy if exists "Admins can update all profiles" on profiles;
 
 create policy "Users can read their own profile"
   on profiles for select
@@ -644,6 +647,10 @@ create policy "Users can update their own profile"
 
 create policy "Admins can read all profiles"
   on profiles for select
+  using (auth.is_admin());
+
+create policy "Admins can update all profiles"
+  on profiles for update
   using (auth.is_admin());
 
 --== SKILLS ==--

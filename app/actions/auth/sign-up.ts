@@ -164,7 +164,8 @@ export async function signUpAction(formData: FormData) {
     id: authData.user.id,
     role: role,
     full_name: fullName,
-    organization_id: organizationId,  // Now set for all roles
+    email: email,  // Add email field
+    organization_id: organizationId,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });

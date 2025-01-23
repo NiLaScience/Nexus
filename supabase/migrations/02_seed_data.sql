@@ -48,11 +48,13 @@ values (
 )
 on conflict (id) do nothing;
 
-insert into profiles (id, role, full_name)
+insert into profiles (id, role, full_name, email, is_active)
 values (
   'c9c90fbc-e3f7-4109-8a46-2b15e0d51c4e', 
   'admin',
-  'System Admin'
+  'System Admin',
+  'admin@nexus.com',
+  true
 )
 on conflict (id) do nothing;
 
@@ -90,12 +92,12 @@ values
 )
 on conflict (id) do nothing;
 
-insert into profiles (id, role, full_name)
+insert into profiles (id, role, full_name, email, is_active)
 values
-('d4e5f6a7-b8c9-7654-1234-def123456789', 'agent', 'John Smith'),
-('b1c2d3e4-f5a6-7890-1234-567890123456', 'agent', 'Sarah Johnson'),
-('e5f6a7b8-c9d0-1234-5678-901234567890', 'agent', 'Mike Brown'),
-('a1b2c3d4-e5f6-7890-1234-567890123456', 'agent', 'Emma Wilson')
+('d4e5f6a7-b8c9-7654-1234-def123456789', 'agent', 'John Smith', 'john@nexus.com', true),
+('b1c2d3e4-f5a6-7890-1234-567890123456', 'agent', 'Sarah Johnson', 'sarah@nexus.com', true),
+('e5f6a7b8-c9d0-1234-5678-901234567890', 'agent', 'Mike Brown', 'mike@nexus.com', true),
+('a1b2c3d4-e5f6-7890-1234-567890123456', 'agent', 'Emma Wilson', 'emma@nexus.com', true)
 on conflict (id) do nothing;
 
 -- 5) Create customers
@@ -132,15 +134,15 @@ values
 )
 on conflict (id) do nothing;
 
-insert into profiles (id, role, full_name, organization_id)
+insert into profiles (id, role, full_name, email, is_active, organization_id)
 values
-('a7b8c9d0-e1f2-0987-4567-123456789012', 'customer', 'Alice Anderson',
+('a7b8c9d0-e1f2-0987-4567-123456789012', 'customer', 'Alice Anderson', 'alice@acme.com', true,
   'd0db7ecc-0e1c-4c45-9daa-b9e5b69ad0c3'),
-('b1c2d3e4-a5b6-7890-1234-567890123456', 'customer', 'Bob Baker',
+('b1c2d3e4-a5b6-7890-1234-567890123456', 'customer', 'Bob Baker', 'bob@techcorp.com', true,
   'f1e2d3c4-b5a6-4789-9012-345678901234'),
-('c1d2e3f4-a5b6-7890-1234-567890123456', 'customer', 'Carol Chen',
+('c1d2e3f4-a5b6-7890-1234-567890123456', 'customer', 'Carol Chen', 'carol@startupco.io', true,
   'a9b8c7d6-e5f4-4321-8765-432109876543'),
-('d1e2f3a4-b5c6-7890-1234-567890123456', 'customer', 'Dave Davis',
+('d1e2f3a4-b5c6-7890-1234-567890123456', 'customer', 'Dave Davis', 'dave@acme.com', true,
   'd0db7ecc-0e1c-4c45-9daa-b9e5b69ad0c3')
 on conflict (id) do nothing;
 
@@ -316,7 +318,7 @@ values
 ('bbbbbbbb-2222-4222-bbbb-222222222222',
  'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaab',
  'd4e5f6a7-b8c9-7654-1234-def123456789',
- 'Customer is on enterprise plan. Let’s prioritize.',
+ 'Customer is on enterprise plan. Let''s prioritize.',
  'web',
  true
 )

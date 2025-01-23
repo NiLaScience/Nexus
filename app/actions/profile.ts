@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
+import { revalidateTag, revalidatePath } from "next/cache";
 
 export type ProfileUpdateData = {
   full_name: string;
@@ -36,5 +36,47 @@ export async function updateProfileAction(data: ProfileUpdateData) {
   }
 
   revalidateTag('profile');
+  return { success: true };
+}
+
+/**
+ * Updates a user's active status
+ * @param userId The ID of the user to update
+ * @param isActive Whether the user should be active or not
+ * @returns Object indicating success or error
+ */
+export async function updateUserActiveStatusAction(userId: string, isActive: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated" };
+  }
+
+  // Only admins can update other users' active status
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || profile.role !== 'admin') {
+    return { error: "Only admins can update user active status" };
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      is_active: isActive,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+
+  if (error) {
+    console.error('Error updating user active status:', error);
+    return { error: "Failed to update user active status" };
+  }
+
+  revalidatePath('/settings');
   return { success: true };
 } 
