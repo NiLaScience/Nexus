@@ -10,17 +10,9 @@ import { AttachmentsList } from "@/components/tickets/attachments-list";
 import { TicketDetails } from "@/components/tickets/ticket-details";
 import { createClient } from "@/utils/supabase/server";
 import { getTicketMessagesAction, getInternalNotesAction } from "@/app/actions/tickets/messages.server";
-import type { TimelineEvent, RelatedTicket, Attachment } from "@/types/ticket";
-
-// Temporary mock data until we implement these features
-const MOCK_TIMELINE: TimelineEvent[] = [];
-const MOCK_RELATED_TICKETS: RelatedTicket[] = [];
-
-interface TicketTag {
-  tag: {
-    name: string;
-  };
-}
+import { getTicketEventsAction } from "@/app/actions/tickets/events.server";
+import { getRelatedTicketsAction } from "@/app/actions/tickets/related.server";
+import type { TicketTag } from "@/types/ticket";
 
 export default async function TicketPage({ params }: any) {
   const { id } = params;
@@ -50,16 +42,16 @@ export default async function TicketPage({ params }: any) {
     .eq('id', id)
     .single();
 
-  // Fetch messages and internal notes
-  const [messagesResult, internalNotesResult] = await Promise.all([
+  // Fetch messages, internal notes, events and related tickets
+  const [messagesResult, internalNotesResult, eventsResult, relatedTicketsResult] = await Promise.all([
     getTicketMessagesAction(id),
-    getInternalNotesAction(id)
+    getInternalNotesAction(id),
+    getTicketEventsAction(id),
+    getRelatedTicketsAction(id)
   ]);
-  console.log('Ticket ID being queried:', id); // Debug log
-  console.log('Messages result:', messagesResult); // Debug log
   
   if (ticketError) {
-    console.error('Ticket error:', ticketError); // Debug log
+    console.error('Ticket error:', ticketError);
     return (
       <div className="p-6">
         <div className="bg-destructive/10 text-destructive p-4 rounded-lg">
@@ -81,8 +73,6 @@ export default async function TicketPage({ params }: any) {
 
   // Transform ticket tags into the expected format
   const tags = ticket.ticket_tags?.map((tt: TicketTag) => tt.tag.name) || [];
-
-  console.log('Ticket data:', { ...ticket, tags }); // Debug log
 
   return (
     <div className="p-6">
@@ -117,7 +107,7 @@ export default async function TicketPage({ params }: any) {
             initialNotes={internalNotesResult.messages || []}
           />
 
-          <RelatedTickets tickets={MOCK_RELATED_TICKETS} />
+          <RelatedTickets tickets={relatedTicketsResult.tickets || []} />
         </div>
 
         <div className="space-y-6">
@@ -126,7 +116,7 @@ export default async function TicketPage({ params }: any) {
             requester={ticket.customer}
             assignedTo={ticket.assignee}
           />
-          <TicketTimeline events={MOCK_TIMELINE} />
+          <TicketTimeline events={eventsResult.events || []} />
           <AttachmentsList
             ticketId={id}
           />

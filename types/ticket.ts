@@ -7,6 +7,12 @@ export interface User {
   role: 'customer' | 'agent' | 'admin';
 }
 
+export interface TicketTag {
+  tag: {
+    name: string;
+  };
+}
+
 export interface Ticket {
   id: string;
   title: string;
