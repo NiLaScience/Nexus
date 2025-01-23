@@ -79,12 +79,12 @@ export async function getRelatedTicketsAction(ticketId: string) {
         priority: ticket.priority,
         date: new Date(ticket.created_at).toLocaleString(),
         tags: ticketTags,
-        organization: ticket.organization?.name || 'Unknown Organization',
+        organization: ticket.organization?.[0]?.name || 'Unknown Organization',
         requester: {
-          name: ticket.customer?.full_name || 'Unknown'
+          name: ticket.customer?.[0]?.full_name || 'Unknown'
         },
-        assignedTo: ticket.assignee ? {
-          name: ticket.assignee.full_name || 'Unknown'
+        assignedTo: ticket.assignee?.[0] ? {
+          name: ticket.assignee[0].full_name || 'Unknown'
         } : undefined,
         // Calculate relevance score
         _relevance: {

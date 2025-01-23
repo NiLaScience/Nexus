@@ -1,4 +1,3 @@
-import { createClient } from "@/utils/supabase/server";
 import { AnalyticsClient } from "../../components/analytics/analytics-client";
 import { getAnalyticsDataAction } from "@/app/actions/analytics.server";
 

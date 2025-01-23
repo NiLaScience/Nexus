@@ -49,7 +49,7 @@ type TicketMessage = {
   tickets?: { created_at: string } | null;
 };
 
-type AgentWithTickets = Profile & {
+export type AgentWithTickets = Profile & {
   tickets: Pick<Ticket, 'id' | 'status'>[] | null;
 };
 

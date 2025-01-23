@@ -31,6 +31,21 @@ type AnalyticsFilters = {
   team_id?: string;
 };
 
+type Message = {
+  id: string;
+  ticket_id: string;
+  created_at: string;
+  author: Array<{
+    role: string;
+  }>;
+  is_internal: boolean;
+  tickets: Array<{
+    created_at: string;
+    organization_id: string;
+    team_id: string;
+  }>;
+};
+
 export async function getAnalyticsDataAction(timePeriod: string = "7d", filters?: AnalyticsFilters) {
   const supabase = await createClient();
   
@@ -181,12 +196,12 @@ export async function getAnalyticsDataAction(timePeriod: string = "7d", filters?
   console.log('Messages:', messages?.length || 0);
 
   console.log('\nMessage Analysis:');
-  messages?.forEach(msg => {
+  messages?.forEach((msg: Message) => {
     console.log(`\nMessage for ticket ${msg.ticket_id}:`);
-    console.log(`  Author role: ${msg.author?.role || 'no role'}`);
+    console.log(`  Author role: ${msg.author[0]?.role || 'no role'}`);
     console.log(`  Is internal: ${msg.is_internal}`);
     console.log(`  Created at: ${new Date(msg.created_at).toISOString()}`);
-    console.log(`  Ticket created at: ${msg.tickets?.created_at ? new Date(msg.tickets.created_at).toISOString() : 'no ticket date'}`);
+    console.log(`  Ticket created at: ${msg.tickets[0]?.created_at ? new Date(msg.tickets[0].created_at).toISOString() : 'no ticket date'}`);
   });
 
   // Calculate average response time for current period
@@ -197,11 +212,11 @@ export async function getAnalyticsDataAction(timePeriod: string = "7d", filters?
   console.log('\nCalculating current period response times:');
   messages?.forEach(msg => {
     // Only count agent responses
-    if (msg.author?.role === 'agent' || msg.author?.role === 'admin') {
+    if (msg.author[0]?.role === 'agent' || msg.author[0]?.role === 'admin') {
       console.log(`\nFound agent/admin message for ticket ${msg.ticket_id}`);
       if (!ticketFirstResponse[msg.ticket_id]) {
         console.log('  First response for this ticket');
-        const ticketCreatedAt = msg.tickets?.created_at;
+        const ticketCreatedAt = msg.tickets[0]?.created_at;
         if (ticketCreatedAt) {
           const messageDate = new Date(msg.created_at);
           const ticketDate = new Date(ticketCreatedAt);
@@ -247,10 +262,10 @@ export async function getAnalyticsDataAction(timePeriod: string = "7d", filters?
     if (
       messageDate >= previousStartDate && 
       messageDate <= previousEndDate &&
-      (msg.author?.role === 'agent' || msg.author?.role === 'admin')
+      (msg.author[0]?.role === 'agent' || msg.author[0]?.role === 'admin')
     ) {
       if (!previousTicketFirstResponse[msg.ticket_id]) {
-        const ticketCreatedAt = msg.tickets?.created_at;
+        const ticketCreatedAt = msg.tickets[0]?.created_at;
         if (ticketCreatedAt) {
           const ticketDate = new Date(ticketCreatedAt);
           const responseTime = messageDate.getTime() - ticketDate.getTime();

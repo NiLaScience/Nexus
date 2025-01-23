@@ -20,15 +20,6 @@ export async function updateTicketAction(
     if (userError) throw userError;
     if (!user) throw new Error("Not authenticated");
 
-    // Get the current ticket state to compare changes
-    const { data: currentTicket, error: ticketError } = await supabase
-      .from("tickets")
-      .select("status, assigned_to, team_id, priority")
-      .eq("id", ticketId)
-      .single();
-
-    if (ticketError) throw ticketError;
-
     // Convert empty string to null so we don't pass "" to a UUID column
     const sanitizedUpdates = { ...updates };
     if (sanitizedUpdates.assigned_to === "") {

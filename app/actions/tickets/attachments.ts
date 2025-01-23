@@ -175,7 +175,6 @@ export async function getAttachmentUrlAction(storagePath: string) {
 }
 
 export async function deleteAttachmentAction(attachmentId: string) {
-  const supabase = await createClient();
   const cookieStore = await cookies();
   const serviceClient = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -72,7 +72,7 @@ export async function getTicketEventsAction(ticketId: string) {
     id: event.id,
     type: event.event_type,
     date: new Date(event.created_at).toLocaleString(),
-    user: event.actor?.full_name || 'Unknown User',
+    user: event.actor?.[0]?.full_name || 'Unknown User',
     description: formatEventDescription(event.event_type, event.old_value, event.new_value, agentNames)
   }));
 
