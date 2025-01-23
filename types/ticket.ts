@@ -1,4 +1,4 @@
-export type TicketStatus = 'open' | 'in_progress' | 'closed';
+export type TicketStatus = string;
 
 export interface User {
   id: string;
@@ -35,8 +35,8 @@ export interface Ticket {
 }
 
 export interface TimelineEvent {
-  id: number;
-  type: 'created' | 'assigned' | 'status_change' | 'comment';
+  id: string;
+  type: string;
   date: string;
   user: string;
   description: string;

@@ -4,31 +4,28 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Ticket } from "@/types/ticket";
 import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
-import type { TicketStatus } from "@/app/actions/workspace-settings";
+import type { TicketStatus as WorkspaceTicketStatus } from "@/types/workspace-settings";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 interface TicketListProps {
   tickets: Ticket[];
 }
 
-export function TicketList({ tickets }: TicketListProps) {
-  const [statuses, setStatuses] = useState<TicketStatus[]>([]);
+export default function TicketList({ tickets }: TicketListProps) {
+  const [workspaceStatuses, setWorkspaceStatuses] = useState<WorkspaceTicketStatus[]>([]);
 
   useEffect(() => {
-    async function loadStatuses() {
-      try {
-        const settings = await getWorkspaceSettings();
-        if (settings?.ticket_statuses) {
-          setStatuses(settings.ticket_statuses);
-        }
-      } catch (error) {
-        console.error('Error loading statuses:', error);
+    async function loadWorkspaceSettings() {
+      const settings = await getWorkspaceSettings();
+      if (settings?.ticket_statuses) {
+        setWorkspaceStatuses(settings.ticket_statuses);
       }
     }
-    loadStatuses();
+    loadWorkspaceSettings();
   }, []);
 
-  const getStatusDisplay = (statusName: string) => {
-    const status = statuses.find(s => s.name === statusName);
+  const getStatusInfo = (statusName: string) => {
+    const status = workspaceStatuses.find(s => s.name === statusName);
     return status ? {
       display: status.display,
       color: status.color
@@ -36,6 +33,22 @@ export function TicketList({ tickets }: TicketListProps) {
       display: statusName.replace("_", " "),
       color: "#808080"
     };
+  };
+
+  const getStatusClass = (statusName: string) => {
+    const status = workspaceStatuses.find(s => s.name === statusName);
+    switch (statusName) {
+      case 'open':
+        return 'bg-red-500/10 text-red-500';
+      case 'in_progress':
+        return 'bg-orange-500/10 text-orange-500';
+      case 'resolved':
+        return 'bg-green-500/10 text-green-500';
+      case 'closed':
+        return 'bg-gray-500/10 text-gray-500';
+      default:
+        return 'bg-gray-500/10 text-gray-500';
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -52,6 +65,20 @@ export function TicketList({ tickets }: TicketListProps) {
     } catch (error) {
       console.error('Error formatting date:', error);
       return dateString; // Return original string if formatting fails
+    }
+  };
+
+  const getPriorityClass = (priority: string) => {
+    switch (priority) {
+      case "high":
+      case "urgent":
+        return 'bg-destructive/10 text-destructive rounded-full';
+      case "medium":
+        return 'bg-warning/10 text-warning rounded-full';
+      case "low":
+        return 'bg-muted/10 text-muted-foreground rounded-full';
+      default:
+        return 'bg-muted/10 text-muted-foreground rounded-full';
     }
   };
 
@@ -104,33 +131,16 @@ export function TicketList({ tickets }: TicketListProps) {
           </div>
 
           <div>
-            {(() => {
-              const status = getStatusDisplay(ticket.status);
-              return (
-                <span
-                  className="inline-block px-2 py-1 rounded text-xs"
-                  style={{
-                    backgroundColor: `${status.color}20`,
-                    color: status.color
-                  }}
-                >
-                  {status.display}
-                </span>
-              );
-            })()}
+            <span 
+              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(ticket.status)}`}
+            >
+              {getStatusInfo(ticket.status).display}
+            </span>
           </div>
 
           <div>
-            <span
-              className={`inline-block px-2 py-1 rounded text-xs ${
-                ticket.priority === "high"
-                  ? "bg-destructive/20 text-destructive"
-                  : ticket.priority === "medium"
-                  ? "bg-warning/20 text-warning"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {ticket.priority}
+            <span className={`inline-flex items-center px-2 py-1 text-xs font-medium ${getPriorityClass(ticket.priority)}`}>
+              {ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}
             </span>
           </div>
         </Link>

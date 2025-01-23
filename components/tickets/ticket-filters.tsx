@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/select";
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
+import type { TicketStatus as WorkspaceTicketStatus } from "@/types/workspace-settings";
 
 interface Agent {
   id: string;
@@ -54,6 +56,7 @@ export function TicketFilters({ onFilterChange }: TicketFiltersProps) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [workspaceStatuses, setWorkspaceStatuses] = useState<WorkspaceTicketStatus[]>([]);
   const [filters, setFilters] = useState({
     search: '',
     timePeriod: '7days',
@@ -67,6 +70,12 @@ export function TicketFilters({ onFilterChange }: TicketFiltersProps) {
 
   useEffect(() => {
     async function loadData() {
+      // Load workspace settings
+      const settings = await getWorkspaceSettings();
+      if (settings?.ticket_statuses) {
+        setWorkspaceStatuses(settings.ticket_statuses);
+      }
+
       // Load agents
       const { data: agentsData } = await supabase
         .from('profiles')
@@ -191,9 +200,15 @@ export function TicketFilters({ onFilterChange }: TicketFiltersProps) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Status</SelectItem>
-          <SelectItem value="open">Open</SelectItem>
-          <SelectItem value="in_progress">In Progress</SelectItem>
-          <SelectItem value="closed">Closed</SelectItem>
+          {workspaceStatuses.map((status) => (
+            <SelectItem 
+              key={status.name} 
+              value={status.name}
+              style={{ color: status.color }}
+            >
+              {status.display}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
 

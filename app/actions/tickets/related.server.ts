@@ -1,6 +1,32 @@
 import { createClient } from "@/utils/supabase/server";
 import type { RelatedTicket } from "@/types/ticket";
 
+interface DBTicket {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  created_at: string;
+  organization_id: string;
+  customer: {
+    id: string;
+    full_name: string | null;
+  } | null;
+  assignee: {
+    id: string;
+    full_name: string | null;
+  } | null;
+  ticket_tags: {
+    tag: {
+      name: string;
+    };
+  }[];
+  organization: {
+    name: string;
+  } | null;
+}
+
 export async function getRelatedTicketsAction(ticketId: string) {
   const supabase = await createClient();
 
@@ -38,11 +64,11 @@ export async function getRelatedTicketsAction(ticketId: string) {
       priority,
       created_at,
       organization_id,
-      customer:customer_id(
+      customer:profiles!tickets_customer_id_fkey(
         id,
         full_name
       ),
-      assignee:assigned_to(
+      assignee:profiles!tickets_assigned_to_fkey(
         id,
         full_name
       ),
@@ -51,14 +77,15 @@ export async function getRelatedTicketsAction(ticketId: string) {
           name
         )
       ),
-      organization:organization_id(
+      organization:organizations!tickets_organization_id_fkey(
         name
       )
     `)
     .neq('id', ticketId)
     .in('status', ['open', 'in_progress'])
     .order('created_at', { ascending: false })
-    .limit(10); // Increased limit since we'll filter and sort
+    .limit(10)
+    .returns<DBTicket[]>();
 
   if (relatedError) {
     console.error('Error fetching related tickets:', relatedError);
@@ -68,7 +95,7 @@ export async function getRelatedTicketsAction(ticketId: string) {
   // Transform and sort tickets based on relevance
   const tickets: RelatedTicket[] = relatedTickets
     .map(ticket => {
-      const ticketTags = ticket.ticket_tags?.map((tt: any) => tt.tag.name) || [];
+      const ticketTags = ticket.ticket_tags?.map(tt => tt.tag.name) || [];
       const sharedTags = ticketTags.filter(tag => tagNames.includes(tag));
       
       return {
@@ -79,12 +106,12 @@ export async function getRelatedTicketsAction(ticketId: string) {
         priority: ticket.priority,
         date: new Date(ticket.created_at).toLocaleString(),
         tags: ticketTags,
-        organization: ticket.organization?.[0]?.name || 'Unknown Organization',
+        organization: ticket.organization?.name || 'Unknown Organization',
         requester: {
-          name: ticket.customer?.[0]?.full_name || 'Unknown'
+          name: ticket.customer?.full_name || 'Unknown'
         },
-        assignedTo: ticket.assignee?.[0] ? {
-          name: ticket.assignee[0].full_name || 'Unknown'
+        assignedTo: ticket.assignee ? {
+          name: ticket.assignee.full_name || 'Unknown'
         } : undefined,
         // Calculate relevance score
         _relevance: {

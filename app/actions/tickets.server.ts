@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 export async function updateTicketAction(
   ticketId: string,
   updates: {
-    status?: "open" | "in_progress" | "resolved" | "closed";
+    status?: string;
     assigned_to?: string | null; 
     team_id?: string | null;
     priority?: "low" | "medium" | "high" | "urgent";

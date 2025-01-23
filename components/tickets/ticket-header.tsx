@@ -31,6 +31,8 @@ import {
 import { updateTicketAction, getAgentsAction, updateTicketTagsAction } from "@/app/actions/tickets.server";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
+import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
+import type { TicketStatus as WorkspaceTicketStatus } from "@/types/workspace-settings";
 
 interface Agent {
   id: string;
@@ -53,11 +55,12 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showPriorityDialog, setShowPriorityDialog] = useState(false);
-  const [pendingPriority, setPendingPriority] = useState<string | null>(null);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
-  const [pendingAgent, setPendingAgent] = useState<{id: string, name: string} | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [pendingPriority, setPendingPriority] = useState<string | null>(null);
+  const [pendingAgent, setPendingAgent] = useState<{ id: string; name: string } | null>(null);
+  const [workspaceStatuses, setWorkspaceStatuses] = useState<WorkspaceTicketStatus[]>([]);
   const [tags, setTags] = useState<string[]>(initialTags);
   const [tagInput, setTagInput] = useState("");
   const [isEditingTags, setIsEditingTags] = useState(false);
@@ -93,7 +96,32 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
     loadAgents();
   }, [toast]);
 
-  const handleStatusChange = async (newStatus: "open" | "in_progress" | "resolved" | "closed") => {
+  useEffect(() => {
+    async function loadWorkspaceSettings() {
+      const settings = await getWorkspaceSettings();
+      if (settings?.ticket_statuses) {
+        setWorkspaceStatuses(settings.ticket_statuses);
+      }
+    }
+    loadWorkspaceSettings();
+  }, []);
+
+  const getStatusDisplay = (statusName: string) => {
+    const status = workspaceStatuses.find(s => s.name === statusName);
+    return status ? status.display : statusName;
+  };
+
+  const getStatusColor = (statusName: string) => {
+    const status = workspaceStatuses.find(s => s.name === statusName);
+    return status ? status.color : '#808080';
+  };
+
+  const getStatusClass = (statusName: string) => {
+    const color = getStatusColor(statusName);
+    return `text-[${color}]`;
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
     setPendingStatus(newStatus);
     setShowStatusDialog(true);
   };
@@ -235,25 +263,17 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
     }
   };
 
-  // Helper function to get priority class
-  const getPriorityClass = (value: string) => {
-    switch (value) {
-      case 'low': return 'text-muted-foreground';
-      case 'medium': return 'text-warning';
-      case 'high': return 'text-destructive';
-      case 'urgent': return 'text-destructive font-medium';
-      default: return '';
-    }
-  };
-
-  // Helper function to get status class
-  const getStatusClass = (value: string) => {
-    switch (value) {
-      case 'open': return 'text-success';
-      case 'in_progress': return 'text-primary';
-      case 'resolved':
-      case 'closed': return 'text-muted-foreground';
-      default: return '';
+  const getPriorityClass = (priority: string) => {
+    switch (priority) {
+      case "high":
+      case "urgent":
+        return 'bg-destructive/10 text-destructive';
+      case "medium":
+        return 'bg-warning/10 text-warning';
+      case "low":
+        return 'bg-muted/10 text-muted-foreground';
+      default:
+        return 'bg-muted/10 text-muted-foreground';
     }
   };
 
@@ -361,17 +381,33 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
               onValueChange={handlePriorityChange} 
               disabled={isLoading}
             >
-              <SelectTrigger className={`w-[180px] h-9 ${getPriorityClass(priority)}`}>
-                <SelectValue placeholder="Priority" />
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue placeholder="Priority">
+                  {priority && (
+                    <span 
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(priority)}`}
+                    >
+                      {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                    </span>
+                  )}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
                   Set Priority
                 </div>
-                <SelectItem value="low" className="text-muted-foreground">Low</SelectItem>
-                <SelectItem value="medium" className="text-warning">Medium</SelectItem>
-                <SelectItem value="high" className="text-destructive">High</SelectItem>
-                <SelectItem value="urgent" className="text-destructive font-medium">Urgent</SelectItem>
+                {["low", "medium", "high", "urgent"].map((p) => (
+                  <SelectItem 
+                    key={p} 
+                    value={p}
+                  >
+                    <span
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(p)}`}
+                    >
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             
@@ -381,17 +417,41 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
               onValueChange={handleStatusChange} 
               disabled={isLoading}
             >
-              <SelectTrigger className={`w-[180px] h-9 ${getStatusClass(status)}`}>
-                <SelectValue placeholder="Status" />
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue placeholder="Status">
+                  {status && (
+                    <span 
+                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                      style={{ 
+                        color: getStatusColor(status),
+                        backgroundColor: `${getStatusColor(status)}10`
+                      }}
+                    >
+                      {getStatusDisplay(status)}
+                    </span>
+                  )}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
                   Set Status
                 </div>
-                <SelectItem value="open" className="text-success">Open</SelectItem>
-                <SelectItem value="in_progress" className="text-primary">In Progress</SelectItem>
-                <SelectItem value="resolved" className="text-muted-foreground">Resolved</SelectItem>
-                <SelectItem value="closed" className="text-muted-foreground">Closed</SelectItem>
+                {workspaceStatuses.map((statusOption) => (
+                  <SelectItem 
+                    key={statusOption.name} 
+                    value={statusOption.name}
+                  >
+                    <span
+                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                      style={{ 
+                        color: statusOption.color,
+                        backgroundColor: `${statusOption.color}10`
+                      }}
+                    >
+                      {statusOption.display}
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

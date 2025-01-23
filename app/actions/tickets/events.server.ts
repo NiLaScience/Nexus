@@ -1,6 +1,18 @@
 import { createClient } from "@/utils/supabase/server";
 import type { TimelineEvent } from "@/types/ticket";
 
+interface TicketEvent {
+  id: string;
+  event_type: string;
+  old_value: string | null;
+  new_value: string | null;
+  created_at: string;
+  actor: {
+    id: string;
+    full_name: string | null;
+  } | null;
+}
+
 // Helper function to format status for display
 function formatStatus(status: string): string {
   switch (status) {
@@ -29,13 +41,14 @@ export async function getTicketEventsAction(ticketId: string) {
       old_value,
       new_value,
       created_at,
-      actor:actor_id(
+      actor:profiles!ticket_events_actor_id_fkey(
         id,
         full_name
       )
     `)
     .eq('ticket_id', ticketId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .returns<TicketEvent[]>();
 
   if (error) {
     console.error('Error fetching ticket events:', error);
@@ -72,7 +85,7 @@ export async function getTicketEventsAction(ticketId: string) {
     id: event.id,
     type: event.event_type,
     date: new Date(event.created_at).toLocaleString(),
-    user: event.actor?.[0]?.full_name || 'Unknown User',
+    user: event.actor?.full_name || 'Unknown User',
     description: formatEventDescription(event.event_type, event.old_value, event.new_value, agentNames)
   }));
 

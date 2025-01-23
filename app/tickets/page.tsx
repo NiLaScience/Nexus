@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { TicketFilters } from "@/components/tickets/ticket-filters";
-import { TicketList } from "@/components/tickets/ticket-list";
+import TicketList from "@/components/tickets/ticket-list";
 import { getTicketsAction } from "@/app/actions/tickets";
 import { useState, useEffect } from "react";
 import type { Ticket } from "@/types/ticket";
