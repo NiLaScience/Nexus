@@ -49,20 +49,14 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
 
     try {
       const formData = new FormData(e.currentTarget);
-      // Add tags to form data
       formData.append('tags', JSON.stringify(tags));
-      
-      // Add priority to form data
       formData.append('priority', priority);
-      
-      // Files are already in the FormData from the file input
-      // No need to append them again
+      formData.append('status', 'open'); // Always set status to 'open' for new tickets
 
       await onSubmit(formData);
       router.push('/tickets');
     } catch (error) {
       console.error('Error submitting ticket:', error);
-      // TODO: Show error message to user
     } finally {
       setIsSubmitting(false);
     }
@@ -159,29 +153,16 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2" htmlFor="files">
-            Attachments
-          </label>
+          <label className="block text-sm font-medium mb-2">Attachments</label>
           <Input
-            id="files"
-            name="files"
             type="file"
-            multiple
-            accept="image/*,.pdf,.txt,.doc,.docx"
             onChange={handleFileChange}
+            multiple
+            accept="image/*,.pdf,.doc,.docx"
           />
-          {files.length > 0 && (
-            <div className="mt-2 text-sm text-gray-600">
-              {files.length} file(s) selected
-            </div>
-          )}
         </div>
 
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={isSubmitting}
-        >
+        <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />

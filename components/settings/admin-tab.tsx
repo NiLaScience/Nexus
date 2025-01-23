@@ -14,10 +14,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { TeamManagement } from "./team-management";
+import CustomizationTab from "./customization-tab";
 import { getSkillsAction, addSkillAction } from "@/app/actions/skills.server";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Wrench, MessageSquare } from "lucide-react";
+import { Users, Wrench, MessageSquare, Settings } from "lucide-react";
 import Link from "next/link";
 
 export function AdminTab() {
@@ -52,6 +53,9 @@ export function AdminTab() {
           </TabsTrigger>
           <TabsTrigger value="templates" className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4" /> Templates
+          </TabsTrigger>
+          <TabsTrigger value="customization" className="flex items-center gap-2">
+            <Settings className="w-4 h-4" /> Customization
           </TabsTrigger>
         </TabsList>
 
@@ -108,6 +112,12 @@ export function AdminTab() {
                 </Link>
               </Button>
             </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="customization">
+          <div className="bg-card p-6 rounded-lg shadow">
+            <CustomizationTab />
           </div>
         </TabsContent>
       </Tabs>
