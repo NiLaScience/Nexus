@@ -44,7 +44,7 @@ export function TicketRating({ ticketId, status, customerId }: TicketRatingProps
     }
 
     async function loadRating() {
-      const { rating, error } = await getTicketRatingAction(ticketId);
+      const { rating } = await getTicketRatingAction(ticketId);
       setExistingRating(rating);
       setIsLoading(false);
     }

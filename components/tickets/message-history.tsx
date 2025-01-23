@@ -15,7 +15,7 @@ import { type TicketMessage } from "@/app/actions/tickets/messages";
 import { addMessageAction } from "@/app/actions/tickets/messages.server";
 import { useToast } from "@/components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
-import { uploadAttachmentAction, getAttachmentUrlAction, type Attachment } from "@/app/actions/tickets/attachments";
+import { uploadAttachmentAction, getAttachmentUrlAction } from "@/app/actions/tickets/attachments";
 import { createClient } from "@/utils/supabase/client";
 
 interface MessageHistoryProps {

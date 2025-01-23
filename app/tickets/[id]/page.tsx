@@ -1,6 +1,3 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { TicketHeader } from "@/components/tickets/ticket-header";
 import { MessageHistory } from "@/components/tickets/message-history";
 import { TicketTimeline } from "@/components/tickets/ticket-timeline";
