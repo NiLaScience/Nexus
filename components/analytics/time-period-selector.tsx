@@ -8,20 +8,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface TimePeriodSelectorProps {
-  onChange?: (value: string) => void;
+export interface TimePeriodSelectorProps {
+  value: string;
+  onChange: (value: string) => void;
 }
 
-export function TimePeriodSelector({ onChange }: TimePeriodSelectorProps) {
+export function TimePeriodSelector({ value, onChange }: TimePeriodSelectorProps) {
   return (
-    <Select defaultValue="7days" onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="Time Period" />
+        <SelectValue placeholder="Select time period" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="7days">Last 7 days</SelectItem>
-        <SelectItem value="30days">Last 30 days</SelectItem>
-        <SelectItem value="90days">Last 90 days</SelectItem>
+        <SelectItem value="24h">Last 24 hours</SelectItem>
+        <SelectItem value="7d">Last 7 days</SelectItem>
+        <SelectItem value="30d">Last 30 days</SelectItem>
+        <SelectItem value="90d">Last 90 days</SelectItem>
       </SelectContent>
     </Select>
   );
