@@ -1,9 +1,26 @@
 import { createClient } from "@/utils/supabase/server";
 import type { TimelineEvent } from "@/types/ticket";
 
+// Helper function to format status for display
+function formatStatus(status: string): string {
+  switch (status) {
+    case 'open':
+      return 'Open';
+    case 'in_progress':
+      return 'In Progress';
+    case 'resolved':
+      return 'Resolved';
+    case 'closed':
+      return 'Closed';
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+}
+
 export async function getTicketEventsAction(ticketId: string) {
   const supabase = await createClient();
 
+  // First get all agent IDs mentioned in the events
   const { data: events, error } = await supabase
     .from('ticket_events')
     .select(`
@@ -25,32 +42,63 @@ export async function getTicketEventsAction(ticketId: string) {
     return { error: error.message };
   }
 
+  // Get all unique agent IDs from old_value and new_value fields in assignment events
+  const agentIds = new Set<string>();
+  events.forEach(event => {
+    if (event.event_type === 'assigned' || event.event_type === 'unassigned') {
+      if (event.old_value) agentIds.add(event.old_value);
+      if (event.new_value) agentIds.add(event.new_value);
+    }
+  });
+
+  // Fetch agent names if there are any agent IDs
+  let agentNames: Record<string, string> = {};
+  if (agentIds.size > 0) {
+    const { data: agents, error: agentsError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', Array.from(agentIds));
+
+    if (!agentsError && agents) {
+      agentNames = agents.reduce((acc, agent) => ({
+        ...acc,
+        [agent.id]: agent.full_name || 'Unknown Agent'
+      }), {});
+    }
+  }
+
   // Transform the events into the TimelineEvent format
   const timelineEvents: TimelineEvent[] = events.map(event => ({
     id: event.id,
     type: event.event_type,
     date: new Date(event.created_at).toLocaleString(),
     user: event.actor?.full_name || 'Unknown User',
-    description: formatEventDescription(event.event_type, event.old_value, event.new_value)
+    description: formatEventDescription(event.event_type, event.old_value, event.new_value, agentNames)
   }));
 
   return { events: timelineEvents };
 }
 
-function formatEventDescription(type: string, oldValue: string | null, newValue: string | null): string {
+function formatEventDescription(
+  type: string, 
+  oldValue: string | null, 
+  newValue: string | null,
+  agentNames: Record<string, string>
+): string {
   switch (type) {
     case 'created':
       return 'created the ticket';
     case 'status_changed':
-      return `changed status from ${oldValue} to ${newValue}`;
+      return `changed status from ${formatStatus(oldValue || '')} to ${formatStatus(newValue || '')}`;
     case 'priority_changed':
       return `changed priority from ${oldValue} to ${newValue}`;
     case 'assigned':
-      return oldValue 
-        ? `reassigned ticket from ${oldValue} to ${newValue}`
-        : `assigned ticket to ${newValue}`;
+      if (oldValue) {
+        return `reassigned ticket from ${agentNames[oldValue] || 'Unknown Agent'} to ${agentNames[newValue || ''] || 'Unknown Agent'}`;
+      }
+      return `assigned ticket to ${agentNames[newValue || ''] || 'Unknown Agent'}`;
     case 'unassigned':
-      return 'unassigned the ticket';
+      return `unassigned ticket from ${agentNames[oldValue || ''] || 'Unknown Agent'}`;
     case 'team_changed':
       return `moved ticket to a different team`;
     case 'tag_added':

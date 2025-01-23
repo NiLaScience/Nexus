@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { AddMessageParams, TicketMessage } from "./messages";
+import { revalidatePath } from "next/cache";
 
 export async function getTicketMessagesAction(ticketId: string) {
   console.log('Fetching messages for ticket:', ticketId);
@@ -113,6 +114,9 @@ export async function addMessageAction({ ticketId, content, isInternal = false }
       console.error('Error creating message:', insertError);
       throw insertError;
     }
+
+    // Revalidate the ticket page to update timeline
+    revalidatePath(`/tickets/${ticketId}`);
 
     console.log('New message added:', message);
     return { message: message as unknown as TicketMessage, error: null };

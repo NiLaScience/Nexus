@@ -13,6 +13,7 @@ import { getAttachmentUrlAction, getTicketAttachmentsAction } from "@/app/action
 import { useToast } from "@/components/ui/use-toast";
 import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { createClient } from "@/utils/supabase/client";
 
 interface AttachmentsListProps {
   ticketId: string;
@@ -22,6 +23,7 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const supabase = createClient();
 
   useEffect(() => {
     async function loadAttachments() {
@@ -54,8 +56,32 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
       }
     }
 
+    // Initial load
     loadAttachments();
-  }, [ticketId, toast]);
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('attachments-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_attachments',
+          filter: `message_id=in.(select id from ticket_messages where ticket_id=${ticketId})`
+        },
+        () => {
+          // Reload attachments when changes occur
+          loadAttachments();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [ticketId, toast, supabase]);
 
   const handleDownload = async (attachment: Attachment) => {
     try {
@@ -93,11 +119,13 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
         ) : attachments.length === 0 ? (
           <div className="text-center text-muted-foreground">No attachments yet</div>
         ) : (
-          <div className="space-y-3">
-            {attachments.map((attachment) => (
+          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-4">
+            {attachments.map((attachment, index) => (
               <div
                 key={attachment.id}
-                className="flex items-center justify-between p-2 rounded border border-border bg-muted/50"
+                className={`flex items-center justify-between p-2 rounded border border-border bg-muted/50 ${
+                  index >= 3 ? "" : "mb-2"
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">

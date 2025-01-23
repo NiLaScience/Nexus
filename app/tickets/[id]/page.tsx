@@ -76,23 +76,17 @@ export default async function TicketPage({ params }: any) {
 
   return (
     <div className="p-6">
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/tickets">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        </Link>
-        <h1 className="text-2xl font-semibold">{ticket.title}</h1>
-      </div>
-      
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
           <div className="bg-card border p-4 rounded-lg">
             <TicketHeader
               ticketId={id}
+              title={ticket.title}
               created={ticket.created_at}
               tags={tags}
               status={ticket.status}
+              priority={ticket.priority}
+              assignedTo={ticket.assignee}
             />
             <p className="text-muted-foreground mt-4">{ticket.description}</p>
           </div>

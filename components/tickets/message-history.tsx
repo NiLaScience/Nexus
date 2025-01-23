@@ -127,12 +127,12 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6 mb-6">
+        <div className="space-y-6 mb-6 max-h-[400px] overflow-y-auto pr-4">
           {messages?.length === 0 ? (
             <p className="text-muted-foreground text-center py-4">No messages yet</p>
           ) : (
-            messages?.map((message) => (
-              <div key={message.id} className="flex gap-4">
+            messages?.map((message, index) => (
+              <div key={message.id} className={`flex gap-4 ${index >= 3 ? "" : "pb-4 border-b border-border"}`}>
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                   {message.author?.full_name?.[0] ?? '?'}
                 </div>

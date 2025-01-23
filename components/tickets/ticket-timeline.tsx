@@ -20,7 +20,7 @@ export function TicketTimeline({ events }: TimelineProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[400px] overflow-y-auto pr-4">
           {events.map((event, index) => (
             <div key={event.id} className="relative pl-6">
               {/* Timeline connector */}

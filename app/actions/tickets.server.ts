@@ -59,47 +59,6 @@ export async function updateTicketAction(
       throw updateError;
     }
 
-    // Create ticket events for each change
-    if (updates.status && updates.status !== currentTicket.status) {
-      await supabase.from("ticket_events").insert({
-        ticket_id: ticketId,
-        actor_id: user.id,
-        event_type: 'status_changed',
-        old_value: currentTicket.status,
-        new_value: updates.status
-      });
-    }
-
-    if (updates.assigned_to !== undefined && updates.assigned_to !== currentTicket.assigned_to) {
-      await supabase.from("ticket_events").insert({
-        ticket_id: ticketId,
-        actor_id: user.id,
-        event_type: updates.assigned_to ? 'assigned' : 'unassigned',
-        old_value: currentTicket.assigned_to,
-        new_value: updates.assigned_to
-      });
-    }
-
-    if (updates.team_id !== undefined && updates.team_id !== currentTicket.team_id) {
-      await supabase.from("ticket_events").insert({
-        ticket_id: ticketId,
-        actor_id: user.id,
-        event_type: 'team_changed',
-        old_value: currentTicket.team_id,
-        new_value: updates.team_id
-      });
-    }
-
-    if (updates.priority && updates.priority !== currentTicket.priority) {
-      await supabase.from("ticket_events").insert({
-        ticket_id: ticketId,
-        actor_id: user.id,
-        event_type: 'priority_changed',
-        old_value: currentTicket.priority,
-        new_value: updates.priority
-      });
-    }
-
     // Revalidate the tickets page and the specific ticket page
     revalidatePath("/tickets");
     revalidatePath(`/tickets/${ticketId}`);
@@ -126,5 +85,81 @@ export async function getAgentsAction() {
   } catch (error) {
     console.error("Error fetching agents:", error);
     return { agents: [], error: (error as Error).message };
+  }
+}
+
+export type TicketFilters = {
+  status?: string[];
+  priority?: string[];
+  assigned_to?: string;
+  team_id?: string;
+  organization_id?: string;
+  search?: string;
+  customer_id?: string;
+};
+
+export async function updateTicketTagsAction(ticketId: string, tags: string[]) {
+  try {
+    const supabase = await createClient();
+
+    // First, delete existing tags
+    const { error: deleteError } = await supabase
+      .from("ticket_tags")
+      .delete()
+      .eq("ticket_id", ticketId);
+
+    if (deleteError) throw deleteError;
+
+    // Then, insert new tags
+    if (tags.length > 0) {
+      // First ensure all tags exist in the tags table
+      const { data: existingTags, error: tagError } = await supabase
+        .from("tags")
+        .select("id, name")
+        .in("name", tags);
+
+      if (tagError) throw tagError;
+
+      // Create any missing tags
+      const existingTagNames = existingTags?.map(t => t.name) || [];
+      const newTags = tags.filter(tag => !existingTagNames.includes(tag));
+
+      if (newTags.length > 0) {
+        const { error: createTagError } = await supabase
+          .from("tags")
+          .insert(newTags.map(name => ({ name })));
+
+        if (createTagError) throw createTagError;
+      }
+
+      // Get all tag IDs (both existing and newly created)
+      const { data: allTags, error: allTagsError } = await supabase
+        .from("tags")
+        .select("id, name")
+        .in("name", tags);
+
+      if (allTagsError) throw allTagsError;
+
+      // Create ticket_tags entries
+      const { error: insertError } = await supabase
+        .from("ticket_tags")
+        .insert(
+          allTags.map(tag => ({
+            ticket_id: ticketId,
+            tag_id: tag.id
+          }))
+        );
+
+      if (insertError) throw insertError;
+    }
+
+    // Revalidate the tickets page and the specific ticket page
+    revalidatePath("/tickets");
+    revalidatePath(`/tickets/${ticketId}`);
+
+    return { error: null };
+  } catch (error) {
+    console.error("Error updating ticket tags:", error);
+    return { error: (error as Error).message };
   }
 } 

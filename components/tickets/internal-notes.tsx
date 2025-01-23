@@ -120,46 +120,50 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4 mb-4">
-          {notes.map((note) => (
-            <div key={note.id} className="flex gap-4">
-              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                {note.author?.full_name?.[0] ?? '?'}
-              </div>
-              <div className="flex-1">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="font-medium">{note.author?.full_name || 'Unknown'}</span>
-                    <span className="text-xs text-muted-foreground ml-2">{note.author?.role}</span>
-                  </div>
-                  <span className="text-muted-foreground text-sm">
-                    {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
-                  </span>
+        <div className="space-y-4 mb-4 max-h-[400px] overflow-y-auto pr-4">
+          {notes.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">No internal notes yet</p>
+          ) : (
+            notes.map((note, index) => (
+              <div key={note.id} className={`flex gap-4 ${index >= 3 ? "" : "pb-4 border-b border-border"}`}>
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                  {note.author?.full_name?.[0] ?? '?'}
                 </div>
-                <p className="mt-1 text-muted-foreground">{note.content}</p>
-                {note.attachments && note.attachments.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {note.attachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="flex items-center gap-2 p-2 rounded bg-muted/50"
-                      >
-                        <Paperclip className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm flex-1">{attachment.name}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDownload(attachment)}
-                        >
-                          Download
-                        </Button>
-                      </div>
-                    ))}
+                <div className="flex-1">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-medium">{note.author?.full_name || 'Unknown'}</span>
+                      <span className="text-xs text-muted-foreground ml-2">{note.author?.role}</span>
+                    </div>
+                    <span className="text-muted-foreground text-sm">
+                      {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
+                    </span>
                   </div>
-                )}
+                  <p className="mt-1 text-muted-foreground">{note.content}</p>
+                  {note.attachments && note.attachments.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {note.attachments.map((attachment) => (
+                        <div
+                          key={attachment.id}
+                          className="flex items-center gap-2 p-2 rounded bg-muted/50"
+                        >
+                          <Paperclip className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm flex-1">{attachment.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDownload(attachment)}
+                          >
+                            Download
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
         <div className="space-y-4">
           <Textarea
