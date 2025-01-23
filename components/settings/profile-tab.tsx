@@ -15,9 +15,11 @@ import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
 import { updateProfileAction } from "@/app/actions/auth";
 import { useToast } from "@/components/ui/use-toast";
+import { AgentSkills } from "./agent-skills";
 
 export function ProfileTab() {
   const [profile, setProfile] = useState<{
+    id: string;
     full_name: string;
     email: string;
     role: string;
@@ -95,55 +97,63 @@ export function ProfileTab() {
   }
 
   return (
-    <div className="bg-card p-6 rounded-lg shadow">
-      <h2 className="text-lg font-medium mb-6">Personal Information</h2>
-      <div className="space-y-4 max-w-md">
-        <div className="space-y-2">
-          <Label htmlFor="name">Full Name</Label>
-          <Input
-            id="name"
-            value={profile?.full_name || ""}
-            onChange={(e) =>
-              setProfile((prev) =>
-                prev ? { ...prev, full_name: e.target.value } : null
-              )
-            }
-          />
+    <div className="space-y-6">
+      <div className="bg-card p-6 rounded-lg shadow">
+        <h2 className="text-lg font-medium mb-6">Personal Information</h2>
+        <div className="space-y-4 max-w-md">
+          <div className="space-y-2">
+            <Label htmlFor="name">Full Name</Label>
+            <Input
+              id="name"
+              value={profile?.full_name || ""}
+              onChange={(e) =>
+                setProfile((prev) =>
+                  prev ? { ...prev, full_name: e.target.value } : null
+                )
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={profile?.email || ""}
+              disabled
+              className="bg-muted"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="role">Role</Label>
+            <Select
+              value={profile?.role || ""}
+              onValueChange={(value) =>
+                setProfile((prev) =>
+                  prev ? { ...prev, role: value } : null
+                )
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="agent">Support Agent</SelectItem>
+                <SelectItem value="admin">Administrator</SelectItem>
+                <SelectItem value="manager">Team Manager</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save Changes"}
+          </Button>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            value={profile?.email || ""}
-            disabled
-            className="bg-muted"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="role">Role</Label>
-          <Select
-            value={profile?.role || ""}
-            onValueChange={(value) =>
-              setProfile((prev) =>
-                prev ? { ...prev, role: value } : null
-              )
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="agent">Support Agent</SelectItem>
-              <SelectItem value="admin">Administrator</SelectItem>
-              <SelectItem value="manager">Team Manager</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save Changes"}
-        </Button>
       </div>
+
+      {profile && (profile.role === 'agent' || profile.role === 'admin') && (
+        <div className="bg-card p-6 rounded-lg shadow">
+          <AgentSkills userId={profile.id} />
+        </div>
+      )}
     </div>
   );
 } 

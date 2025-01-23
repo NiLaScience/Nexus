@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { getTeamsAction } from "@/app/actions/teams.server";
+import { getAgentsAction } from "@/app/actions/tickets.server";
+import { Suspense } from "react";
+import { TeamManagement } from "./team-management";
+import { getSkillsAction, addSkillAction } from "@/app/actions/skills.server";
+import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Users, Wrench } from "lucide-react";
 
 const MOCK_TEAMS = [
   {
@@ -36,146 +55,140 @@ const COMMON_SKILLS = [
   "React",
   "Node.js",
   "Customer Service",
-  "Technical Support",
   "Project Management",
+  "Communication",
+  "Problem Solving",
+  "Technical Support",
 ];
 
 export function AdminTab() {
+  const [skills, setSkills] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function fetchSkills() {
+    try {
+      const { skills: skillsData, error } = await getSkillsAction();
+      if (error) throw error;
+      setSkills(skillsData || []);
+    } catch (err) {
+      toast.error("Failed to load skills");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchSkills();
+  }, []);
+
   return (
     <div className="space-y-6">
-      {/* Team Management Section */}
-      <div className="bg-card p-6 rounded-lg shadow">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-medium">Team Management</h2>
-          <Button>Create New Team</Button>
-        </div>
-        <div className="space-y-6">
-          {MOCK_TEAMS.map((team) => (
-            <div key={team.id} className="border rounded-lg p-4 space-y-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-lg font-medium">{team.name}</h3>
-                  <p className="text-sm text-muted-foreground">{team.focus}</p>
-                </div>
-                <Button variant="outline" size="sm">
-                  Edit Team
-                </Button>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Team Skills</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {team.skills.map((skill) => (
-                      <Badge key={skill} variant="secondary">
-                        {skill}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Assigned Agents</h4>
-                  <div className="space-y-1">
-                    {team.agents.map((agent) => (
-                      <div key={agent} className="text-sm text-muted-foreground">
-                        {agent}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Assigned Clients</h4>
-                  <div className="space-y-1">
-                    {team.clients.map((client) => (
-                      <div key={client} className="text-sm text-muted-foreground">
-                        {client}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-4 mt-4">
-                <Button variant="outline" size="sm">
-                  Manage Skills
-                </Button>
-                <Button variant="outline" size="sm">
-                  Assign Agents
-                </Button>
-                <Button variant="outline" size="sm">
-                  Manage Clients
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <Tabs defaultValue="teams" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="teams" className="flex items-center gap-2">
+            <Users className="w-4 h-4" /> Teams
+          </TabsTrigger>
+          <TabsTrigger value="skills" className="flex items-center gap-2">
+            <Wrench className="w-4 h-4" /> Skills
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Agent Skills Management Section */}
-      <div className="bg-card p-6 rounded-lg shadow">
-        <h2 className="text-lg font-medium mb-6">Agent Skills Management</h2>
-        <div className="space-y-4">
-          <div className="flex gap-4 items-center">
-            <Select>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select Agent" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sarah">Sarah Wilson</SelectItem>
-                <SelectItem value="mike">Mike Johnson</SelectItem>
-                <SelectItem value="emma">Emma Davis</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input placeholder="Add new skill" className="flex-1" />
-            <Button>Add Skill</Button>
+        <TabsContent value="teams">
+          <div className="bg-card p-6 rounded-lg shadow">
+            <TeamManagement />
           </div>
-          <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-3">Common Skills</h3>
-            <div className="flex flex-wrap gap-2">
-              {COMMON_SKILLS.map((skill) => (
-                <Badge
-                  key={skill}
-                  variant="outline"
-                  className="cursor-pointer hover:bg-muted"
-                >
-                  {skill}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+        </TabsContent>
 
-      {/* Client Assignment Section */}
-      <div className="bg-card p-6 rounded-lg shadow">
-        <h2 className="text-lg font-medium mb-6">Client Assignment</h2>
-        <div className="space-y-4">
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Client" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="acme">Acme Corp</SelectItem>
-                  <SelectItem value="techstart">TechStart Inc</SelectItem>
-                  <SelectItem value="global">Global Industries</SelectItem>
-                </SelectContent>
-              </Select>
+        <TabsContent value="skills">
+          <div className="bg-card p-6 rounded-lg shadow">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-medium">Skills Management</h2>
+              <AddSkillDialog onSkillAdded={fetchSkills} />
             </div>
-            <div className="flex-1">
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Assign to Team" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tech">Technical Support</SelectItem>
-                  <SelectItem value="customer">Customer Success</SelectItem>
-                </SelectContent>
-              </Select>
+
+            <div className="space-y-4">
+              {loading ? (
+                <div>Loading skills...</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {skills.map((skill) => (
+                    <div
+                      key={skill.id}
+                      className="p-4 border rounded-lg space-y-2"
+                    >
+                      <h3 className="font-medium">{skill.name}</h3>
+                      {skill.description && (
+                        <p className="text-sm text-muted-foreground">
+                          {skill.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <Button>Assign</Button>
           </div>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
+  );
+}
+
+function AddSkillDialog({ onSkillAdded }: { onSkillAdded: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get("name") as string;
+    const description = formData.get("description") as string;
+
+    const { error } = await addSkillAction({ name, description });
+
+    setLoading(false);
+    if (error) {
+      toast.error("Failed to add skill");
+    } else {
+      toast.success("Skill added successfully");
+      setOpen(false);
+      onSkillAdded();
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>Add New Skill</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add New Skill</DialogTitle>
+          <DialogDescription>
+            Create a new skill that agents can add to their profile.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="name">Skill Name</Label>
+            <Input id="name" name="name" required />
+          </div>
+          <div>
+            <Label htmlFor="description">Description</Label>
+            <Input id="description" name="description" />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Adding..." : "Add Skill"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 } 

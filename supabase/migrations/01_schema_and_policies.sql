@@ -74,11 +74,59 @@ create table teams (
     updated_at timestamptz not null default now()
 );
 
+create table skills (
+    id uuid primary key default gen_random_uuid(),
+    name text not null unique,
+    description text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table agent_skills (
+    user_id uuid references profiles(id) on delete cascade,
+    skill_id uuid references skills(id) on delete cascade,
+    proficiency_level text not null check (proficiency_level in ('beginner', 'intermediate', 'expert')),
+    created_at timestamptz not null default now(),
+    primary key (user_id, skill_id)
+);
+
+--
+-- Only agent/admin can have skills
+--
+create or replace function validate_agent_skill()
+returns trigger as $$
+begin
+    if not exists (
+       select 1 
+       from profiles 
+       where profiles.id = new.user_id 
+         and profiles.role in ('agent', 'admin')
+    )
+    then
+       raise exception 'Invalid agent skill: user must be agent or admin';
+    end if;
+    return new;
+end;
+$$ language plpgsql;
+
+create trigger validate_agent_skill_trigger
+  before insert or update
+  on agent_skills
+  for each row
+  execute function validate_agent_skill();
+
 create table team_members (
     team_id uuid references teams(id) on delete cascade,
     user_id uuid references profiles(id) on delete cascade,
     created_at timestamptz not null default now(),
     primary key (team_id, user_id)
+);
+
+create table team_organizations (
+    team_id uuid references teams(id) on delete cascade,
+    organization_id uuid references organizations(id) on delete cascade,
+    created_at timestamptz not null default now(),
+    primary key (team_id, organization_id)
 );
 
 --
@@ -560,6 +608,9 @@ alter table organizations enable row level security;
 alter table organization_members enable row level security;
 alter table teams enable row level security;
 alter table team_members enable row level security;
+alter table team_organizations enable row level security;
+alter table skills enable row level security;
+alter table agent_skills enable row level security;
 alter table tickets enable row level security;
 alter table ticket_messages enable row level security;
 alter table message_attachments enable row level security;
@@ -593,6 +644,28 @@ create policy "Users can update their own profile"
 
 create policy "Admins can read all profiles"
   on profiles for select
+  using (auth.is_admin());
+
+--== SKILLS ==--
+create policy "Everyone can read skills"
+  on skills for select
+  using (true);
+
+create policy "Admins can manage skills"
+  on skills for all
+  using (auth.is_admin());
+
+--== AGENT_SKILLS ==--
+create policy "Everyone can read agent skills"
+  on agent_skills for select
+  using (true);
+
+create policy "Users can manage their own skills"
+  on agent_skills for all
+  using (user_id = auth.uid() and auth.is_admin_or_agent());
+
+create policy "Admins can manage all agent skills"
+  on agent_skills for all
   using (auth.is_admin());
 
 --== ORGANIZATIONS ==--
@@ -928,5 +1001,14 @@ using (
     )
   )
 );
+
+--== TEAM_ORGANIZATIONS ==--
+create policy "Admins can manage all team organizations"
+  on team_organizations for all
+  using (auth.is_admin());
+
+create policy "Agents can read all team organizations"
+  on team_organizations for select
+  using (auth.is_admin_or_agent());
 
 -- done!
