@@ -65,13 +65,20 @@ export interface InternalComment {
   content: string;
 }
 
-export interface Attachment {
+export type Attachment = {
+  id: string;
+  message_id: string;
   name: string;
-  size: string;
-  type: string;
-  date?: string;
-  user?: string;
-}
+  size: number;
+  mime_type: string;
+  storage_path: string;
+  created_at: string;
+  author?: {
+    id: string;
+    full_name: string | null;
+    role: string;
+  };
+};
 
 export interface RelatedTicket {
   id: number;

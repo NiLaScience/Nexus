@@ -13,6 +13,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  experimental: {
+    serverActions: {
+      // Increase to 50MB to match Supabase storage limit
+      bodySizeLimit: '50mb'
+    }
+  }
 };
 
 export default nextConfig;

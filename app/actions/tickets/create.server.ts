@@ -135,28 +135,51 @@ export async function createTicketAction(formData: FormData) {
 
       // Upload each file using service client
       for (const file of files) {
-        const { error: uploadError } = await serviceClient.storage
-          .from('ticket-attachments')
-          .upload(`${ticket.id}/${file.name}`, file);
+        try {
+          // Generate a unique filename to prevent duplicates
+          const timestamp = new Date().getTime();
+          const uniqueFilename = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+          const storagePath = `${ticket.id}/${message.id}/${uniqueFilename}`;
 
-        if (uploadError) {
-          console.error('File upload error:', uploadError);
-          continue; // Skip this file but continue with others
-        }
+          // Check if file already exists
+          const { data: existingFiles } = await serviceClient.storage
+            .from('ticket-attachments')
+            .list(`${ticket.id}/${message.id}`);
 
-        // Create attachment record using service client
-        const { error: attachmentError } = await serviceClient
-          .from('message_attachments')
-          .insert({
-            message_id: message.id,
-            name: file.name,
-            size: file.size,
-            mime_type: file.type,
-            storage_path: `${ticket.id}/${file.name}`
-          });
+          const fileExists = existingFiles?.some(f => f.name === uniqueFilename);
+          if (fileExists) {
+            console.error(`File ${file.name} already exists`);
+            continue;
+          }
 
-        if (attachmentError) {
-          console.error('Attachment record error:', attachmentError);
+          const { error: uploadError } = await serviceClient.storage
+            .from('ticket-attachments')
+            .upload(storagePath, file, {
+              upsert: false // Prevent overwriting
+            });
+
+          if (uploadError) {
+            console.error('File upload error:', uploadError);
+            continue;
+          }
+
+          // Create attachment record using service client
+          const { error: attachmentError } = await serviceClient
+            .from('message_attachments')
+            .insert({
+              message_id: message.id,
+              name: file.name, // Store original filename for display
+              size: file.size,
+              mime_type: file.type,
+              storage_path: storagePath
+            });
+
+          if (attachmentError) {
+            console.error('Attachment record error:', attachmentError);
+          }
+        } catch (fileError) {
+          console.error(`Error processing file ${file.name}:`, fileError);
+          // Continue with other files
         }
       }
     } catch (error) {

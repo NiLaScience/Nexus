@@ -14,6 +14,14 @@ export type TicketMessage = {
     full_name: string | null;
     role: string;
   };
+  attachments?: {
+    id: string;
+    name: string;
+    size: number;
+    mime_type: string;
+    storage_path: string;
+    created_at: string;
+  }[];
 };
 
 export type AddMessageParams = {
@@ -34,7 +42,15 @@ export async function getTicketMessagesAction(ticketId: string) {
         created_at,
         is_internal,
         source,
-        author:author_id(id, full_name, role)
+        author:author_id(id, full_name, role),
+        attachments:message_attachments(
+          id,
+          name,
+          size,
+          mime_type,
+          storage_path,
+          created_at
+        )
       `)
       .eq('ticket_id', ticketId)
       .order('created_at', { ascending: true });
@@ -67,7 +83,7 @@ export async function addMessageAction({ ticketId, content, isInternal = false }
     }
 
     // Add the message
-    const { error: insertError } = await supabase
+    const { data: message, error: insertError } = await supabase
       .from('ticket_messages')
       .insert({
         ticket_id: ticketId,
@@ -75,14 +91,31 @@ export async function addMessageAction({ ticketId, content, isInternal = false }
         content: content.trim(),
         is_internal: isInternal,
         source: 'web'
-      });
+      })
+      .select(`
+        id,
+        content,
+        created_at,
+        is_internal,
+        source,
+        author:author_id(id, full_name, role),
+        attachments:message_attachments(
+          id,
+          name,
+          size,
+          mime_type,
+          storage_path,
+          created_at
+        )
+      `)
+      .single();
 
     if (insertError) {
       console.error('Error adding message:', insertError);
       return { error: 'Failed to add message' };
     }
 
-    return { success: true };
+    return { message };
   } catch (error) {
     console.error('Error in addMessageAction:', error);
     return { error: 'Failed to add message' };
@@ -101,7 +134,15 @@ export async function getInternalNotesAction(ticketId: string) {
         content,
         created_at,
         source,
-        author:author_id(id, full_name, role)
+        author:author_id(id, full_name, role),
+        attachments:message_attachments(
+          id,
+          name,
+          size,
+          mime_type,
+          storage_path,
+          created_at
+        )
       `)
       .eq('ticket_id', ticketId)
       .eq('is_internal', true)

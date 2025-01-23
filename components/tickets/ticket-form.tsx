@@ -55,10 +55,8 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
       // Add priority to form data
       formData.append('priority', priority);
       
-      // Add files to form data
-      files.forEach((file) => {
-        formData.append('files', file);
-      });
+      // Files are already in the FormData from the file input
+      // No need to append them again
 
       await onSubmit(formData);
       router.push('/tickets');

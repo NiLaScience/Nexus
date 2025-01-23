@@ -3,17 +3,19 @@
 import { MessageCircle, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { type TicketMessage } from "@/app/actions/tickets/messages";
 import { addMessageAction } from "@/app/actions/tickets/messages.server";
 import { useToast } from "@/components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import { uploadAttachmentAction, getAttachmentUrlAction, type Attachment } from "@/app/actions/tickets/attachments";
 
 interface MessageHistoryProps {
   ticketId: string;
@@ -24,6 +26,8 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
   const [messages, setMessages] = useState<TicketMessage[]>(initialMessages);
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Debug: Log initial messages when component mounts
@@ -31,14 +35,20 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
     console.log('MessageHistory mounted with messages:', initialMessages);
   }, [initialMessages]);
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setSelectedFiles(Array.from(e.target.files));
+    }
+  };
+
   const handleSendMessage = async () => {
-    if (!messageText.trim() || isSending) return;
+    if ((!messageText.trim() && selectedFiles.length === 0) || isSending) return;
 
     try {
       setIsSending(true);
       const { message, error } = await addMessageAction({
         ticketId,
-        content: messageText,
+        content: messageText || 'Added attachments',
         isInternal: false,
       });
 
@@ -46,9 +56,27 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
         throw new Error(error || "Failed to send message");
       }
 
+      // Upload attachments if any
+      if (selectedFiles.length > 0) {
+        for (const file of selectedFiles) {
+          const uploadResult = await uploadAttachmentAction(message.id, file);
+          if (uploadResult.error) {
+            toast({
+              title: "Warning",
+              description: `Failed to upload ${file.name}: ${uploadResult.error}`,
+              variant: "destructive",
+            });
+          }
+        }
+      }
+
       // Update UI with new message
       setMessages([...messages, message]);
       setMessageText("");
+      setSelectedFiles([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       
     } catch (error) {
       toast({
@@ -58,6 +86,36 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
       });
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleDownload = async (attachment: {
+    id: string;
+    name: string;
+    size: number;
+    mime_type: string;
+    storage_path: string;
+    created_at: string;
+  }) => {
+    try {
+      const { url, error } = await getAttachmentUrlAction(attachment.storage_path);
+      if (error) throw new Error(error);
+      if (!url) throw new Error('Failed to get download URL');
+
+      // Create a temporary link and click it to trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = attachment.name; // Set the download filename
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to download file",
+        variant: "destructive",
+      });
     }
   };
 
@@ -89,6 +147,26 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
                     </span>
                   </div>
                   <p className="text-muted-foreground mt-2">{message.content}</p>
+                  {message.attachments && message.attachments.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {message.attachments.map((attachment) => (
+                        <div
+                          key={attachment.id}
+                          className="flex items-center gap-2 p-2 rounded bg-muted/50"
+                        >
+                          <Paperclip className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm flex-1">{attachment.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDownload(attachment)}
+                          >
+                            Download
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))
@@ -108,12 +186,30 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
             }}
           />
           <div className="flex justify-between items-center">
-            <Button variant="outline" disabled>
-              <Paperclip className="w-4 h-4 mr-2" /> Attach Files
-            </Button>
+            <div className="flex items-center gap-2">
+              <Input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                multiple
+                onChange={handleFileSelect}
+                accept="image/*,.pdf,.txt,.doc,.docx"
+              />
+              <Button 
+                variant="outline" 
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Paperclip className="w-4 h-4 mr-2" /> Attach Files
+              </Button>
+              {selectedFiles.length > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  {selectedFiles.length} file(s) selected
+                </span>
+              )}
+            </div>
             <Button 
               onClick={handleSendMessage} 
-              disabled={isSending || !messageText.trim()}
+              disabled={isSending || (!messageText.trim() && selectedFiles.length === 0)}
             >
               {isSending ? "Sending..." : "Send"}
             </Button>

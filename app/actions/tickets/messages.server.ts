@@ -32,6 +32,14 @@ export async function getTicketMessagesAction(ticketId: string) {
           id,
           full_name,
           role
+        ),
+        attachments:message_attachments(
+          id,
+          name,
+          size,
+          mime_type,
+          storage_path,
+          created_at
         )
       `)
       .eq("ticket_id", ticketId)
@@ -71,22 +79,9 @@ export async function addMessageAction({ ticketId, content, isInternal = false }
       console.error('Auth error:', userError);
       throw new Error("Not authenticated");
     }
-    console.log('Current user:', user.id);
 
-    // Debug: Check if user has access to the ticket
-    const { data: ticket, error: ticketError } = await supabase
-      .from('tickets')
-      .select('organization_id, customer_id')
-      .eq('id', ticketId)
-      .single();
-    
-    if (ticketError) {
-      console.error('Error checking ticket access:', ticketError);
-    } else {
-      console.log('Ticket access check:', ticket);
-    }
-
-    const { data: message, error } = await supabase
+    // Add the message
+    const { data: message, error: insertError } = await supabase
       .from("ticket_messages")
       .insert({
         ticket_id: ticketId,
@@ -102,23 +97,27 @@ export async function addMessageAction({ ticketId, content, isInternal = false }
         source,
         is_internal,
         created_at,
-        author:profiles!ticket_messages_author_id_fkey(
+        author:author_id(id, full_name, role),
+        attachments:message_attachments(
           id,
-          full_name,
-          role
+          name,
+          size,
+          mime_type,
+          storage_path,
+          created_at
         )
       `)
       .single();
 
-    if (error) {
-      console.error('Error creating message:', error);
-      throw error;
+    if (insertError) {
+      console.error('Error creating message:', insertError);
+      throw insertError;
     }
 
     console.log('New message added:', message);
     return { message: message as unknown as TicketMessage, error: null };
   } catch (error) {
-    console.error("Error adding ticket message:", error);
+    console.error("Error adding message:", error);
     return {
       message: null,
       error: error instanceof Error ? error.message : "Failed to add message. Please try again."
@@ -140,10 +139,14 @@ export async function getInternalNotesAction(ticketId: string) {
         source,
         is_internal,
         created_at,
-        author:profiles!ticket_messages_author_id_fkey(
+        author:author_id(id, full_name, role),
+        attachments:message_attachments(
           id,
-          full_name,
-          role
+          name,
+          size,
+          mime_type,
+          storage_path,
+          created_at
         )
       `)
       .eq("ticket_id", ticketId)

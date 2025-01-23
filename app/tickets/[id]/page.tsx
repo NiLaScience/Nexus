@@ -15,7 +15,6 @@ import type { TimelineEvent, RelatedTicket, Attachment } from "@/types/ticket";
 // Temporary mock data until we implement these features
 const MOCK_TIMELINE: TimelineEvent[] = [];
 const MOCK_RELATED_TICKETS: RelatedTicket[] = [];
-const MOCK_ATTACHMENTS: Attachment[] = [];
 
 interface TicketTag {
   tag: {
@@ -129,7 +128,7 @@ export default async function TicketPage({ params }: any) {
           />
           <TicketTimeline events={MOCK_TIMELINE} />
           <AttachmentsList
-            attachments={MOCK_ATTACHMENTS}
+            ticketId={id}
           />
         </div>
       </div>
