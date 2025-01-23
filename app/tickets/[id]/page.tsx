@@ -107,6 +107,7 @@ export default async function TicketPage({ params }: { params: { id: string } })
             ticketId={id}
             requester={ticket.customer}
             assignedTo={ticket.assignee}
+            customFields={ticket.custom_fields}
           />
           <TicketTimeline events={eventsResult.events || []} />
           <AttachmentsList

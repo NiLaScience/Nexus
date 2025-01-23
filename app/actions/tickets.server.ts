@@ -10,6 +10,7 @@ export async function updateTicketAction(
     assigned_to?: string | null; 
     team_id?: string | null;
     priority?: "low" | "medium" | "high" | "urgent";
+    custom_fields?: Record<string, any>;
   }
 ) {
   try {
@@ -19,6 +20,67 @@ export async function updateTicketAction(
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError) throw userError;
     if (!user) throw new Error("Not authenticated");
+
+    // Get user's profile to get organization_id
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('organization_id, role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile.organization_id) {
+      console.error('Profile error:', profileError);
+      throw new Error('User profile or organization not found');
+    }
+
+    // If updating custom fields, validate them against workspace settings
+    if (updates.custom_fields) {
+      // Get workspace settings for custom fields validation
+      const { data: settings, error: settingsError } = await supabase
+        .from('workspace_settings')
+        .select('ticket_fields')
+        .eq('organization_id', profile.organization_id)
+        .single();
+
+      if (settingsError) {
+        console.error('Settings error:', settingsError);
+        throw new Error('Failed to load workspace settings');
+      }
+
+      const ticketFields = settings.ticket_fields || [];
+      const customFields = updates.custom_fields;
+
+      // Validate each custom field
+      for (const field of ticketFields) {
+        const value = customFields[field.name];
+        
+        // Check required fields
+        if (field.required && value === undefined) {
+          throw new Error(`Required field ${field.display} is missing`);
+        }
+
+        if (value !== undefined) {
+          // Validate field type
+          switch (field.type) {
+            case 'number':
+              if (typeof value !== 'number' || isNaN(value)) {
+                throw new Error(`${field.display} must be a number`);
+              }
+              break;
+            case 'boolean':
+              if (typeof value !== 'boolean') {
+                throw new Error(`${field.display} must be a boolean`);
+              }
+              break;
+            case 'select':
+              if (!field.options?.includes(value.toString())) {
+                throw new Error(`Invalid option for ${field.display}`);
+              }
+              break;
+          }
+        }
+      }
+    }
 
     // Convert empty string to null so we don't pass "" to a UUID column
     const sanitizedUpdates = { ...updates };

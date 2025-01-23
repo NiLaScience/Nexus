@@ -1,9 +1,17 @@
+'use client';
+
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
+import { format } from "date-fns";
+import { useState, useEffect } from "react";
+import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
+import type { CustomField } from "@/types/custom-fields";
+import { Separator } from "@/components/ui/separator";
 
 interface UserProfile {
   id: string;
@@ -15,15 +23,50 @@ interface TicketDetailsProps {
   ticketId: string;
   requester?: UserProfile | null;
   assignedTo?: UserProfile | null;
+  customFields?: Record<string, any>;
 }
 
-export function TicketDetails({ ticketId, requester, assignedTo }: TicketDetailsProps) {
+export function TicketDetails({ ticketId, requester, assignedTo, customFields = {} }: TicketDetailsProps) {
+  const [fieldConfigs, setFieldConfigs] = useState<CustomField[]>([]);
+
+  useEffect(() => {
+    async function loadWorkspaceSettings() {
+      const settings = await getWorkspaceSettings();
+      if (settings?.ticket_fields) {
+        setFieldConfigs(settings.ticket_fields);
+      }
+    }
+    loadWorkspaceSettings();
+  }, []);
+
+  const getFieldDisplay = (fieldName: string) => {
+    const field = fieldConfigs.find(f => f.name === fieldName);
+    return field?.display || fieldName;
+  };
+
+  const formatFieldValue = (value: any, fieldName: string) => {
+    if (value === null || value === undefined) return '—';
+    
+    const field = fieldConfigs.find(f => f.name === fieldName);
+    if (!field) return value.toString();
+
+    switch (field.type) {
+      case 'date':
+        return format(new Date(value), 'PPP');
+      case 'select':
+      case 'text':
+      case 'number':
+      default:
+        return value.toString();
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Ticket Details</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <div>
           <div className="text-sm font-medium text-muted-foreground">Ticket ID</div>
           <div>#{String(ticketId).padStart(5, '0')}</div>
@@ -62,6 +105,23 @@ export function TicketDetails({ ticketId, requester, assignedTo }: TicketDetails
             <div className="text-sm text-muted-foreground mt-1">Not assigned</div>
           )}
         </div>
+
+        {Object.keys(customFields).length > 0 && (
+          <>
+            <Separator className="my-4" />
+            <div>
+              <h3 className="font-semibold mb-4">Custom Fields</h3>
+              <div className="space-y-3">
+                {Object.entries(customFields).map(([key, value]) => (
+                  <div key={key} className="bg-muted/50 p-3 rounded-lg">
+                    <div className="text-sm font-medium text-muted-foreground">{getFieldDisplay(key)}</div>
+                    <div className="mt-1">{formatFieldValue(value, key)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

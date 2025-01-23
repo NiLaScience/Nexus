@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { DEFAULT_WORKSPACE_ID } from "@/types/custom-fields";
 
 export async function createTicketAction(formData: FormData) {
   const supabase = await createClient();
@@ -56,6 +57,18 @@ export async function createTicketAction(formData: FormData) {
     throw new Error('User profile or organization not found');
   }
 
+  // Get workspace settings for custom fields validation
+  const { data: settings, error: settingsError } = await serviceClient
+    .from('workspace_settings')
+    .select('ticket_fields')
+    .eq('workspace_id', DEFAULT_WORKSPACE_ID)
+    .single();
+
+  if (settingsError) {
+    console.error('Settings error:', settingsError);
+    throw new Error('Failed to load workspace settings');
+  }
+
   // Extract form data
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
@@ -65,6 +78,10 @@ export async function createTicketAction(formData: FormData) {
     : 'medium';  // Default to medium if invalid or not specified
   const tags = formData.get('tags') ? JSON.parse(formData.get('tags') as string) as string[] : [];
   const files = formData.getAll('files').filter(file => file instanceof File) as File[];
+
+  // Extract custom fields from JSON
+  const customFieldsJson = formData.get('custom_fields');
+  const customFields = customFieldsJson ? JSON.parse(customFieldsJson as string) : {};
 
   // Create the ticket using service client
   const { data: ticket, error: ticketError } = await serviceClient
@@ -77,6 +94,7 @@ export async function createTicketAction(formData: FormData) {
       source: 'web',
       customer_id: user.id,
       organization_id: profile.organization_id,
+      custom_fields: customFields,
     })
     .select()
     .single();

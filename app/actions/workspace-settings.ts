@@ -2,109 +2,50 @@
 
 import { createClient } from '@/utils/supabase/server';
 import type { TicketStatus, WorkspaceSettings } from '@/types/workspace-settings';
-
-export type { TicketStatus, WorkspaceSettings };
-
-const DEFAULT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000000';
+import type { CustomField } from '@/types/custom-fields';
+import { DEFAULT_WORKSPACE_ID } from '@/types/custom-fields';
 
 export async function getWorkspaceSettings(): Promise<WorkspaceSettings | null> {
   const supabase = await createClient();
-  
-  try {
-    const { data, error } = await supabase
-      .from('workspace_settings')
-      .select('*')
-      .eq('workspace_id', DEFAULT_WORKSPACE_ID)
-      .single();
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No settings found, create default settings
-        const defaultStatuses: TicketStatus[] = [
-          { name: 'open', display: 'Open', color: '#ff0000' },
-          { name: 'in_progress', display: 'In Progress', color: '#ffa500' },
-          { name: 'resolved', display: 'Resolved', color: '#00ff00' },
-          { name: 'closed', display: 'Closed', color: '#808080' }
-        ];
+  const { data: settings, error } = await supabase
+    .from('workspace_settings')
+    .select('*')
+    .eq('workspace_id', DEFAULT_WORKSPACE_ID)
+    .single();
 
-        const { data: newSettings, error: insertError } = await supabase
-          .from('workspace_settings')
-          .insert([{
-            workspace_id: DEFAULT_WORKSPACE_ID,
-            ticket_statuses: defaultStatuses
-          }])
-          .select()
-          .single();
+  if (error) {
+    console.error('Error fetching workspace settings:', error);
+    return null;
+  }
 
-        if (insertError) {
-          console.error('Error creating default workspace settings:', insertError);
-          throw insertError;
-        }
+  return settings;
+}
 
-        return newSettings as WorkspaceSettings;
-      }
+export async function updateTicketStatuses(statuses: TicketStatus[]) {
+  const supabase = await createClient();
 
-      console.error('Error fetching workspace settings:', error);
-      throw error;
-    }
-    return data as WorkspaceSettings;
-  } catch (error) {
-    console.error('Error in getWorkspaceSettings:', error);
+  const { error } = await supabase
+    .from('workspace_settings')
+    .update({ ticket_statuses: statuses })
+    .eq('workspace_id', DEFAULT_WORKSPACE_ID);
+
+  if (error) {
+    console.error('Error updating ticket statuses:', error);
     throw error;
   }
 }
 
-export async function updateTicketStatuses(ticketStatuses: TicketStatus[]): Promise<WorkspaceSettings | null> {
+export async function updateTicketFields(fields: CustomField[]) {
   const supabase = await createClient();
-  
-  try {
-    // First, validate the ticket statuses
-    if (!Array.isArray(ticketStatuses) || !ticketStatuses.every(s => s.name && s.display && s.color)) {
-      throw new Error('Invalid ticket status format');
-    }
 
-    // Try to get existing settings
-    const { data: existingSettings } = await supabase
-      .from('workspace_settings')
-      .select('*')
-      .eq('workspace_id', DEFAULT_WORKSPACE_ID)
-      .single();
+  const { error } = await supabase
+    .from('workspace_settings')
+    .update({ ticket_fields: fields })
+    .eq('workspace_id', DEFAULT_WORKSPACE_ID);
 
-    if (!existingSettings) {
-      // Create new settings if they don't exist
-      const { data: newSettings, error: insertError } = await supabase
-        .from('workspace_settings')
-        .insert([{
-          workspace_id: DEFAULT_WORKSPACE_ID,
-          ticket_statuses: ticketStatuses
-        }])
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error creating workspace settings:', insertError);
-        throw insertError;
-      }
-
-      return newSettings as WorkspaceSettings;
-    }
-
-    // Update existing settings
-    const { data: updatedSettings, error: updateError } = await supabase
-      .from('workspace_settings')
-      .update({ ticket_statuses: ticketStatuses })
-      .eq('workspace_id', DEFAULT_WORKSPACE_ID)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('Error updating ticket statuses:', updateError);
-      throw updateError;
-    }
-
-    return updatedSettings as WorkspaceSettings;
-  } catch (error) {
-    console.error('Error in updateTicketStatuses:', error);
+  if (error) {
+    console.error('Error updating ticket fields:', error);
     throw error;
   }
 } 
