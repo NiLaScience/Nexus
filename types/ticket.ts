@@ -87,9 +87,18 @@ export type Attachment = {
 };
 
 export interface RelatedTicket {
-  id: number;
+  id: string;
   title: string;
-  status: TicketStatus;
+  description: string;
+  status: string;
+  priority: string;
   date: string;
   tags: string[];
+  organization: string;
+  requester: {
+    name: string;
+  };
+  assignedTo?: {
+    name: string;
+  };
 } 

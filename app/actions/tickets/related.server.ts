@@ -33,13 +33,26 @@ export async function getRelatedTicketsAction(ticketId: string) {
     .select(`
       id,
       title,
+      description,
       status,
+      priority,
       created_at,
       organization_id,
+      customer:customer_id(
+        id,
+        full_name
+      ),
+      assignee:assigned_to(
+        id,
+        full_name
+      ),
       ticket_tags(
         tag:tag_id(
           name
         )
+      ),
+      organization:organization_id(
+        name
       )
     `)
     .neq('id', ticketId)
@@ -61,9 +74,18 @@ export async function getRelatedTicketsAction(ticketId: string) {
       return {
         id: ticket.id,
         title: ticket.title,
+        description: ticket.description,
         status: ticket.status,
+        priority: ticket.priority,
         date: new Date(ticket.created_at).toLocaleString(),
         tags: ticketTags,
+        organization: ticket.organization?.name || 'Unknown Organization',
+        requester: {
+          name: ticket.customer?.full_name || 'Unknown'
+        },
+        assignedTo: ticket.assignee ? {
+          name: ticket.assignee.full_name || 'Unknown'
+        } : undefined,
         // Calculate relevance score
         _relevance: {
           sameOrg: ticket.organization_id === organizationId,

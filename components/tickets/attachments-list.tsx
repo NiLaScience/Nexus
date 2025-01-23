@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { getAttachmentUrlAction, getTicketAttachmentsAction } from "@/app/actions/tickets/attachments";
 import { useToast } from "@/components/ui/use-toast";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { createClient } from "@/utils/supabase/client";
 
@@ -25,43 +25,60 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
   const { toast } = useToast();
   const supabase = createClient();
 
-  useEffect(() => {
-    async function loadAttachments() {
-      if (!ticketId) {
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      try {
-        const { attachments, error } = await getTicketAttachmentsAction(ticketId);
-        if (error) {
-          toast({
-            title: "Error",
-            description: error,
-            variant: "destructive",
-          });
-          return;
-        }
-        setAttachments(attachments || []);
-      } catch (error) {
-        console.error('Error loading attachments:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load attachments",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
+  const loadAttachments = useCallback(async () => {
+    if (!ticketId) {
+      setIsLoading(false);
+      return;
     }
 
+    setIsLoading(true);
+    try {
+      const { attachments, error } = await getTicketAttachmentsAction(ticketId);
+      if (error) {
+        toast({
+          title: "Error",
+          description: error,
+          variant: "destructive",
+        });
+        return;
+      }
+      setAttachments(attachments || []);
+    } catch (error) {
+      console.error('Error loading attachments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load attachments",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [ticketId, toast]);
+
+  useEffect(() => {
     // Initial load
     loadAttachments();
 
-    // Set up real-time subscription
+    let reloadTimeout: NodeJS.Timeout;
+
+    // Set up real-time subscription for both messages and attachments
     const channel = supabase
       .channel('attachments-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ticket_messages',
+          filter: `ticket_id=eq.${ticketId}`
+        },
+        () => {
+          // Clear any existing timeout
+          if (reloadTimeout) clearTimeout(reloadTimeout);
+          // Set a new timeout to reload after a delay
+          reloadTimeout = setTimeout(loadAttachments, 500);
+        }
+      )
       .on(
         'postgres_changes',
         {
@@ -71,17 +88,20 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
           filter: `message_id=in.(select id from ticket_messages where ticket_id=${ticketId})`
         },
         () => {
-          // Reload attachments when changes occur
-          loadAttachments();
+          // Clear any existing timeout
+          if (reloadTimeout) clearTimeout(reloadTimeout);
+          // Set a new timeout to reload after a delay
+          reloadTimeout = setTimeout(loadAttachments, 500);
         }
       )
       .subscribe();
 
-    // Cleanup subscription
+    // Cleanup subscription and timeout
     return () => {
+      if (reloadTimeout) clearTimeout(reloadTimeout);
       supabase.removeChannel(channel);
     };
-  }, [ticketId, toast, supabase]);
+  }, [ticketId, supabase, loadAttachments]);
 
   const handleDownload = async (attachment: Attachment) => {
     try {

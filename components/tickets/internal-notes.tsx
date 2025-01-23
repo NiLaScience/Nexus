@@ -16,6 +16,7 @@ import type { TicketMessage } from "@/app/actions/tickets/messages";
 import { formatDistanceToNow } from "date-fns";
 import { uploadAttachmentAction, getAttachmentUrlAction } from "@/app/actions/tickets/attachments";
 import { useToast } from "@/components/ui/use-toast";
+import { createClient } from "@/utils/supabase/client";
 
 interface InternalNotesProps {
   ticketId: string;
@@ -29,6 +30,7 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const supabase = createClient();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -62,10 +64,42 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
             });
           }
         }
+
+        // Fetch the updated message with attachments
+        const { data: updatedMessage } = await supabase
+          .from('ticket_messages')
+          .select(`
+            id,
+            ticket_id,
+            content,
+            created_at,
+            is_internal,
+            source,
+            author:profiles!ticket_messages_author_id_fkey(id, full_name, role),
+            attachments:message_attachments(
+              id,
+              name,
+              size,
+              mime_type,
+              storage_path,
+              created_at
+            )
+          `)
+          .eq('id', message.id)
+          .single();
+
+        if (updatedMessage) {
+          // Update UI with message including attachments
+          setNotes([...notes, updatedMessage as unknown as TicketMessage]);
+        } else {
+          // Fallback to original message if fetch fails
+          setNotes([...notes, message]);
+        }
+      } else {
+        // No attachments, use original message
+        setNotes([...notes, message]);
       }
 
-      // Update UI with new message
-      setNotes([...notes, message]);
       setNoteText("");
       setSelectedFiles([]);
       if (fileInputRef.current) {

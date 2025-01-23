@@ -240,7 +240,7 @@ export async function getTicketAttachmentsAction(ticketId: string) {
       id: string;
       author: {
         id: string;
-        full_name: string;
+        full_name: string | null;
         role: string;
       };
       attachments: {
@@ -257,7 +257,7 @@ export async function getTicketAttachmentsAction(ticketId: string) {
       .from('ticket_messages')
       .select(`
         id,
-        author:profiles!inner(
+        author:profiles!ticket_messages_author_id_fkey(
           id,
           full_name,
           role
@@ -274,12 +274,10 @@ export async function getTicketAttachmentsAction(ticketId: string) {
       .eq('ticket_id', ticketId)
       .returns<DBMessage[]>();
 
-    console.log('Fetching attachments for ticket:', ticketId);
     if (error) {
       console.error('Error fetching attachments:', error);
       throw error;
     }
-    console.log('Raw messages data:', messages);
 
     if (!messages) return { attachments: [] };
 
@@ -293,15 +291,10 @@ export async function getTicketAttachmentsAction(ticketId: string) {
         mime_type: attachment.mime_type,
         storage_path: attachment.storage_path,
         created_at: attachment.created_at,
-        author: {
-          id: message.author.id,
-          full_name: message.author.full_name,
-          role: message.author.role
-        }
+        author: message.author
       }))
     );
 
-    console.log('Transformed attachments:', transformedAttachments);
     return { attachments: transformedAttachments };
   } catch (error) {
     console.error('Error fetching ticket attachments:', error);

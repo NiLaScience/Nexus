@@ -16,6 +16,7 @@ import { addMessageAction } from "@/app/actions/tickets/messages.server";
 import { useToast } from "@/components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { uploadAttachmentAction, getAttachmentUrlAction, type Attachment } from "@/app/actions/tickets/attachments";
+import { createClient } from "@/utils/supabase/client";
 
 interface MessageHistoryProps {
   ticketId: string;
@@ -29,6 +30,7 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const supabase = createClient();
 
   // Debug: Log initial messages when component mounts
   useEffect(() => {
@@ -68,10 +70,42 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
             });
           }
         }
+        
+        // Fetch the updated message with attachments
+        const { data: updatedMessage } = await supabase
+          .from('ticket_messages')
+          .select(`
+            id,
+            ticket_id,
+            content,
+            created_at,
+            is_internal,
+            source,
+            author:profiles!ticket_messages_author_id_fkey(id, full_name, role),
+            attachments:message_attachments(
+              id,
+              name,
+              size,
+              mime_type,
+              storage_path,
+              created_at
+            )
+          `)
+          .eq('id', message.id)
+          .single();
+
+        if (updatedMessage) {
+          // Update UI with message including attachments
+          setMessages([...messages, updatedMessage as unknown as TicketMessage]);
+        } else {
+          // Fallback to original message if fetch fails
+          setMessages([...messages, message]);
+        }
+      } else {
+        // No attachments, use original message
+        setMessages([...messages, message]);
       }
 
-      // Update UI with new message
-      setMessages([...messages, message]);
       setMessageText("");
       setSelectedFiles([]);
       if (fileInputRef.current) {
