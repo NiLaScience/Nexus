@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageCircle, Paperclip } from "lucide-react";
+import { MessageCircle, Paperclip, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect, useRef } from "react";
@@ -10,6 +10,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { type TicketMessage } from "@/app/actions/tickets/messages";
 import { addMessageAction } from "@/app/actions/tickets/messages.server";
@@ -17,6 +22,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { uploadAttachmentAction, getAttachmentUrlAction } from "@/app/actions/tickets/attachments";
 import { createClient } from "@/utils/supabase/client";
+import { listTemplates, type ResponseTemplate } from "@/app/actions/response-templates";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 
 interface MessageHistoryProps {
   ticketId: string;
@@ -28,9 +35,36 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [templates, setTemplates] = useState<ResponseTemplate[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const supabase = createClient();
+
+  // Load templates
+  useEffect(() => {
+    async function loadTemplates() {
+      setIsLoadingTemplates(true);
+      try {
+        const result = await listTemplates();
+        if (result.error) {
+          toast({
+            title: "Error",
+            description: "Failed to load templates",
+            variant: "destructive",
+          });
+        } else {
+          setTemplates(result.templates || []);
+        }
+      } catch (error) {
+        console.error('Error loading templates:', error);
+      } finally {
+        setIsLoadingTemplates(false);
+      }
+    }
+    loadTemplates();
+  }, [toast]);
 
   // Debug: Log initial messages when component mounts
   useEffect(() => {
@@ -41,6 +75,10 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
     if (e.target.files) {
       setSelectedFiles(Array.from(e.target.files));
     }
+  };
+
+  const handleTemplateSelect = async (template: ResponseTemplate) => {
+    setMessageText(template.content);
   };
 
   const handleSendMessage = async () => {
@@ -121,7 +159,7 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
     } finally {
       setIsSending(false);
     }
-  };
+  }
 
   const handleDownload = async (attachment: {
     id: string;
@@ -152,6 +190,11 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
       });
     }
   };
+
+  const filteredTemplates = templates.filter(template => 
+    template.name.toLowerCase().includes(templateSearch.toLowerCase()) ||
+    template.content.toLowerCase().includes(templateSearch.toLowerCase())
+  );
 
   return (
     <Card>
@@ -235,6 +278,38 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
               >
                 <Paperclip className="w-4 h-4 mr-2" /> Attach Files
               </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline">
+                    <Sparkles className="w-4 h-4 mr-2" /> Use Template
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Search templates..." 
+                      value={templateSearch}
+                      onValueChange={setTemplateSearch}
+                    />
+                    <CommandEmpty>No templates found.</CommandEmpty>
+                    <CommandGroup className="max-h-[300px] overflow-y-auto">
+                      {filteredTemplates.map((template) => (
+                        <CommandItem
+                          key={template.id}
+                          value={template.name}
+                          onSelect={() => handleTemplateSelect(template)}
+                          className="flex flex-col items-start gap-1 p-2"
+                        >
+                          <div className="font-medium">{template.name}</div>
+                          <div className="text-sm text-muted-foreground line-clamp-2">
+                            {template.content}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               {selectedFiles.length > 0 && (
                 <span className="text-sm text-muted-foreground">
                   {selectedFiles.length} file(s) selected

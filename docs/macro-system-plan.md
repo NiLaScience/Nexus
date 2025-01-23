@@ -1,33 +1,33 @@
-# Macro System Implementation Plan
+cle# Macro System Implementation Plan
 
 ## Phase 1: Core Functionality
 
 ### 1. Database Schema
-- [ ] Create `response_templates` table
-  - [ ] ID, name, content
-  - [ ] Team ID (for team-specific templates)
-  - [ ] Created by, timestamps
-  - [ ] Usage count
+- [x] Create `response_templates` table
+  - [x] ID, name, content
+  - [x] Team ID (for team-specific templates)
+  - [x] Created by, timestamps
+  - [x] Usage count
 
 ### 2. Backend
-- [ ] Create Supabase migration
-- [ ] Set up basic RLS policies
-  - [ ] Agents can view all templates
-  - [ ] Agents can create/edit their own templates
-  - [ ] Team leads/admins can manage all templates
-- [ ] Create server actions for CRUD operations
+- [x] Create Supabase migration
+- [x] Set up basic RLS policies
+  - [x] Agents can view all templates
+  - [x] Agents can create/edit their own templates
+  - [x] Team leads/admins can manage all templates
+- [x] Create server actions for CRUD operations
 
 ### 3. Frontend
-- [ ] Basic template list view
-  - [ ] Grid/list of available templates
-  - [ ] Search and filter
-  - [ ] Preview template content
-- [ ] Template editor
-  - [ ] Create/edit form
-  - [ ] Rich text editor integration
-- [ ] Message composer integration
-  - [ ] Template selector dropdown
-  - [ ] Insert template into message
+- [x] Basic template list view
+  - [x] Grid/list of available templates
+  - [x] Search and filter
+  - [x] Preview template content
+- [x] Template editor
+  - [x] Create/edit form
+  - [x] Rich text editor integration
+- [x] Message composer integration
+  - [x] Template selector dropdown
+  - [x] Insert template into message
 
 ## Phase 2: Enhancements (Optional)
 
@@ -36,7 +36,7 @@
   - [ ] Customer name
   - [ ] Ticket reference
   - [ ] Agent name
-- [ ] Usage tracking
+- [x] Usage tracking
 - [ ] Template suggestions based on ticket content
 
 ### 2. Team Features

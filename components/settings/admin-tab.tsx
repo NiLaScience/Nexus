@@ -29,7 +29,8 @@ import { TeamManagement } from "./team-management";
 import { getSkillsAction, addSkillAction } from "@/app/actions/skills.server";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Wrench } from "lucide-react";
+import { Users, Wrench, MessageSquare } from "lucide-react";
+import Link from "next/link";
 
 const MOCK_TEAMS = [
   {
@@ -91,6 +92,9 @@ export function AdminTab() {
           <TabsTrigger value="skills" className="flex items-center gap-2">
             <Wrench className="w-4 h-4" /> Skills
           </TabsTrigger>
+          <TabsTrigger value="templates" className="flex items-center gap-2">
+            <MessageSquare className="w-4 h-4" /> Templates
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="teams">
@@ -126,6 +130,25 @@ export function AdminTab() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <div className="bg-card p-6 rounded-lg shadow">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-lg font-medium">Response Templates</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Manage your team's response templates for quick and consistent replies
+                </p>
+              </div>
+              <Button asChild>
+                <Link href="/templates">
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Manage Templates
+                </Link>
+              </Button>
             </div>
           </div>
         </TabsContent>
