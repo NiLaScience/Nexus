@@ -12,7 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEffect, useState } from "react";
-import { updateProfileAction, getProfileAction, getAvailableRolesAction } from "@/app/actions/profile";
+import { updateProfileAction, getProfileAction, getAvailableRolesAction, joinOrganizationAction } from "@/app/actions/profile";
+import { getOrganizationsAction } from "@/app/actions/teams.server";
 import { useToast } from "@/components/ui/use-toast";
 import { AgentSkills } from "./agent-skills";
 
@@ -22,8 +23,10 @@ export function ProfileTab() {
     full_name: string;
     email: string;
     role: string;
+    organization_id: string | null;
   } | null>(null);
   const [roles, setRoles] = useState<readonly string[]>([]);
+  const [organizations, setOrganizations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -31,9 +34,10 @@ export function ProfileTab() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [profileResult, rolesResult] = await Promise.all([
+        const [profileResult, rolesResult, orgsResult] = await Promise.all([
           getProfileAction(),
-          getAvailableRolesAction()
+          getAvailableRolesAction(),
+          getOrganizationsAction()
         ]);
 
         if (profileResult.error) {
@@ -49,6 +53,9 @@ export function ProfileTab() {
           setProfile(profileResult.profile);
         }
         setRoles(rolesResult.roles);
+        if (!orgsResult.error) {
+          setOrganizations(orgsResult.organizations || []);
+        }
       } catch (error) {
         toast({
           title: "Error",
@@ -98,6 +105,36 @@ export function ProfileTab() {
     }
   };
 
+  const handleJoinOrganization = async (organizationId: string) => {
+    setSaving(true);
+    try {
+      const result = await joinOrganizationAction(organizationId);
+
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Successfully joined organization",
+        });
+        // Update the profile state
+        setProfile(prev => prev ? { ...prev, organization_id: organizationId } : null);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to join organization",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="bg-card p-6 rounded-lg shadow">
@@ -107,6 +144,8 @@ export function ProfileTab() {
       </div>
     );
   }
+
+  const currentOrganization = organizations.find(org => org.id === profile?.organization_id);
 
   return (
     <div className="space-y-6">
@@ -156,6 +195,33 @@ export function ProfileTab() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="organization">Organization</Label>
+            <Select
+              value={profile?.organization_id || ""}
+              onValueChange={handleJoinOrganization}
+              disabled={saving}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select an organization">
+                  {currentOrganization?.name || "Select an organization"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {organizations.map(org => (
+                  <SelectItem key={org.id} value={org.id}>
+                    {org.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {currentOrganization && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Current organization: {currentOrganization.name}
+                {currentOrganization.domain && ` (${currentOrganization.domain})`}
+              </p>
+            )}
           </div>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save Changes"}

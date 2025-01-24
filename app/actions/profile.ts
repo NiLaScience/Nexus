@@ -117,4 +117,49 @@ export async function getAvailableRolesAction() {
   return {
     roles: ['customer', 'agent', 'admin'] as const,
   };
+}
+
+/**
+ * Join an organization
+ * @param organizationId The ID of the organization to join
+ * @returns Object indicating success or error
+ */
+export async function joinOrganizationAction(organizationId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated" };
+  }
+
+  // First, update the profile's organization_id
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({
+      organization_id: organizationId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', user.id);
+
+  if (profileError) {
+    console.error('Error updating profile organization:', profileError);
+    return { error: "Failed to update profile organization" };
+  }
+
+  // Then, create an organization member record
+  const { error: memberError } = await supabase
+    .from('organization_members')
+    .insert({
+      organization_id: organizationId,
+      user_id: user.id,
+      role: 'member',
+    });
+
+  if (memberError) {
+    console.error('Error creating organization member:', memberError);
+    return { error: "Failed to create organization member" };
+  }
+
+  revalidatePath('/settings');
+  return { success: true };
 } 

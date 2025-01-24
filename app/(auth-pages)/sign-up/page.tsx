@@ -1,4 +1,3 @@
-import { getOrganizationsAction } from "@/app/actions/organizations";
 import { FormMessage, Message } from "@/components/form-message";
 import { SmtpMessage } from "../smtp-message";
 import { SignUpForm } from "./sign-up-form";
@@ -7,7 +6,6 @@ export default async function Signup(props: {
   searchParams: Promise<Message>;
 }) {
   const searchParams = await props.searchParams;
-  const { organizations } = await getOrganizationsAction();
 
   if ("message" in searchParams) {
     return (
@@ -19,7 +17,7 @@ export default async function Signup(props: {
 
   return (
     <>
-      <SignUpForm organizations={organizations || []} />
+      <SignUpForm />
       <SmtpMessage />
     </>
   );

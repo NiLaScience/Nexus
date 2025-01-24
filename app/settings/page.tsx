@@ -9,10 +9,14 @@ import { TeamTab } from "@/components/settings/team-tab";
 import { AdminTab } from "@/components/settings/admin-tab";
 import { useEffect, useState } from "react";
 import { getProfileAction } from "@/app/actions/profile";
+import { useSearchParams } from "next/navigation";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const searchParams = useSearchParams();
+  const message = searchParams.get('message');
 
   useEffect(() => {
     async function loadProfile() {
@@ -30,7 +34,12 @@ export default function SettingsPage() {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-6">Settings</h1>
-      <Tabs defaultValue="profile" className="space-y-6">
+      {message && (
+        <Alert className="mb-6">
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
+      )}
+      <Tabs defaultValue={message ? "profile" : "profile"} className="space-y-6">
         <TabsList>
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="w-4 h-4" /> Profile

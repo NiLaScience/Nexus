@@ -15,9 +15,6 @@ export async function signUpAction(formData: FormData) {
   const password = formData.get("password")?.toString();
   const role = formData.get("role")?.toString();
   const fullName = formData.get("full_name")?.toString();
-  const organizationId = formData.get("organization_id")?.toString();
-  const organizationName = formData.get("organization_name")?.toString();
-  const organizationDomain = formData.get("organization_domain")?.toString();
   const origin = (await headers()).get("origin");
 
   if (!email || !password || !role || !fullName) {
@@ -36,17 +33,6 @@ export async function signUpAction(formData: FormData) {
       "/sign-up",
       "Invalid role selected",
     );
-  }
-
-  // For customers, validate organization info
-  if (role === 'customer') {
-    if (!organizationId && !organizationName) {
-      return encodedRedirect(
-        "error",
-        "/sign-up",
-        "Please select an organization or create a new one",
-      );
-    }
   }
 
   // Create regular client for auth and service client for database operations
@@ -88,85 +74,6 @@ export async function signUpAction(formData: FormData) {
     }
   );
 
-  // For customers, get or create their organization based on selection or new org info
-  let finalOrganizationId = null;
-
-  if (role === 'customer') {
-    if (organizationId) {
-      // Use selected organization
-      const { data: existingOrg } = await serviceClient
-        .from('organizations')
-        .select('id')
-        .eq('id', organizationId)
-        .single();
-
-      if (!existingOrg) {
-        return encodedRedirect(
-          "error",
-          "/sign-up",
-          "Selected organization not found",
-        );
-      }
-      finalOrganizationId = organizationId;
-    } else {
-      // Create new organization
-      const domain = organizationDomain || email.split('@')[1];
-      const name = organizationName || domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
-      
-      // Check if organization with domain already exists
-      const { data: existingOrg } = await serviceClient
-        .from('organizations')
-        .select('id')
-        .eq('domain', domain)
-        .single();
-
-      if (existingOrg) {
-        return encodedRedirect(
-          "error",
-          "/sign-up",
-          "An organization with this domain already exists. Please select it from the list.",
-        );
-      }
-
-      // Create new organization
-      const { data: newOrg, error: orgError } = await serviceClient
-        .from('organizations')
-        .insert({
-          name: name,
-          domain: domain,
-        })
-        .select('id')
-        .single();
-
-      if (orgError) {
-        console.error("Organization creation error:", orgError);
-        return encodedRedirect(
-          "error",
-          "/sign-up",
-          "Failed to create organization",
-        );
-      }
-      finalOrganizationId = newOrg.id;
-    }
-  } else {
-    // For admins and agents, get the default organization
-    const { data: defaultOrg, error: orgError } = await serviceClient
-      .from('organizations')
-      .select('id')
-      .eq('domain', 'nexus.com')
-      .single();
-
-    if (orgError || !defaultOrg) {
-      console.error("Default organization fetch error:", orgError);
-      return encodedRedirect(
-        "error",
-        "/sign-up",
-        "Failed to get default organization",
-      );
-    }
-    finalOrganizationId = defaultOrg.id;
-  }
-
   // Sign up the user with regular client
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
@@ -192,13 +99,12 @@ export async function signUpAction(formData: FormData) {
     );
   }
 
-  // Create the profile - organization_id now required for all roles
+  // Create the profile
   const { error: profileError } = await serviceClient.from("profiles").insert({
     id: authData.user.id,
     role: role,
     full_name: fullName,
     email: email,
-    organization_id: finalOrganizationId,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
@@ -210,26 +116,6 @@ export async function signUpAction(formData: FormData) {
       "/sign-up",
       "Failed to create user profile",
     );
-  }
-
-  // Only add organization membership for customers
-  if (role === 'customer' && finalOrganizationId) {
-    const { error: memberError } = await serviceClient
-      .from('organization_members')
-      .insert({
-        organization_id: finalOrganizationId,
-        user_id: authData.user.id,
-        role: 'member'
-      });
-
-    if (memberError) {
-      console.error("Organization member creation error:", memberError);
-      return encodedRedirect(
-        "error",
-        "/sign-up",
-        "Failed to add user to organization",
-      );
-    }
   }
 
   return encodedRedirect(

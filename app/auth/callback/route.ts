@@ -22,6 +22,14 @@ export async function GET(request: Request) {
       );
     }
 
+    // Get the user's profile to determine where to redirect
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, organization_id')
+      .eq('id', user?.id)
+      .single();
+
     // If we have a next URL (like from password reset), use that
     if (next) {
       return NextResponse.redirect(`${origin}${next}`);
@@ -32,8 +40,19 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}${redirectTo}`);
     }
 
-    // Default redirect to dashboard
-    return NextResponse.redirect(`${origin}/`);
+    // For customers, check if they have an organization
+    if (profile?.role === 'customer') {
+      if (!profile.organization_id) {
+        // Redirect to settings with a message to join an organization
+        return NextResponse.redirect(
+          `${origin}/settings?message=${encodeURIComponent("Please join an organization to continue")}`
+        );
+      }
+      return NextResponse.redirect(`${origin}/tickets`);
+    }
+
+    // Default redirect to dashboard for agents and admins
+    return NextResponse.redirect(`${origin}/dashboard`);
   }
 
   // No code present, redirect to sign-in
