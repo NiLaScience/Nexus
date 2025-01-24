@@ -36,7 +36,6 @@ export default function NewTemplatePage() {
   const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [isLoadingTeams, setIsLoadingTeams] = useState(true)
-  const [showPreview, setShowPreview] = useState(false)
 
   // Load teams the user has access to
   useEffect(() => {

@@ -26,12 +26,12 @@ export interface Ticket {
     id: string;
     name: string;
     email: string;
-  };
-  assignedTo?: {
+  } | null;
+  assignedTo: {
     id: string;
     name: string;
     email: string;
-  };
+  } | null;
 }
 
 export interface TimelineEvent {

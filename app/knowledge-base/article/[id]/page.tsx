@@ -1,6 +1,6 @@
 import { getArticle } from '@/app/actions/articles/articles.server';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Pencil, Trash, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ChevronLeft, Pencil, Trash } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
@@ -16,15 +16,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { deleteArticle, voteArticle } from '@/app/actions/articles/articles.server';
+import { deleteArticle } from '@/app/actions/articles/articles.server';
 import { VoteButtons } from '@/components/knowledge-base/vote-buttons';
 
-interface ArticlePageProps {
-  params: Promise<{ id: string }> | { id: string };
+interface PageProps {
+  params: Promise<{ id: string }>;
 }
 
-export default async function ArticlePage({ params }: ArticlePageProps) {
-  const resolvedParams = await Promise.resolve(params);
+export default async function ArticlePage({ params }: PageProps) {
+  const resolvedParams = await params;
   const id = resolvedParams.id;
   
   const [article, { data: { user } }] = await Promise.all([

@@ -1,15 +1,12 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from '@/lib/supabase/server';
+import { Database } from '@/types/supabase';
 
-export type TicketMessage = {
-  id: string;
-  ticket_id: string;
-  content: string;
-  source: string;
-  is_internal: boolean;
-  created_at: string;
-  author: {
+type BaseTicketMessage = Database['public']['Tables']['ticket_messages']['Row'];
+
+export interface TicketMessage extends BaseTicketMessage {
+  author?: {
     id: string;
     full_name: string | null;
     role: string;
@@ -22,69 +19,93 @@ export type TicketMessage = {
     storage_path: string;
     created_at: string;
   }[];
-};
+}
 
-export type AddMessageParams = {
+export interface AddMessageParams {
   ticketId: string;
   content: string;
   isInternal?: boolean;
-};
+}
 
-export type { TicketMessage };
+export interface GetMessagesParams {
+  ticketId: string;
+  isInternal?: boolean;
+}
+
+export interface GetMessagesResponse {
+  messages: TicketMessage[];
+  error: string | null;
+}
+
+export interface AddMessageResponse {
+  message: TicketMessage | null;
+  error: string | null;
+}
+
+export interface DeleteMessageParams {
+  messageId: string;
+}
+
+export interface DeleteMessageResponse {
+  success: boolean;
+  error: string | null;
+};
 
 export async function addMessageAction({ ticketId, content, isInternal = false }: AddMessageParams) {
   const supabase = await createClient();
 
-  try {
-    // Validate content
-    if (!content?.trim()) {
-      return { error: 'Message content is required' };
-    }
+  const { data: message, error } = await supabase
+    .from('ticket_messages')
+    .insert({
+      ticket_id: ticketId,
+      content,
+      is_internal: isInternal,
+    })
+    .select()
+    .single();
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return { error: 'Not authenticated' };
-    }
-
-    // Add the message
-    const { data: message, error: insertError } = await supabase
-      .from('ticket_messages')
-      .insert({
-        ticket_id: ticketId,
-        author_id: user.id,
-        content: content.trim(),
-        is_internal: isInternal,
-        source: 'web'
-      })
-      .select(`
-        id,
-        content,
-        created_at,
-        is_internal,
-        source,
-        author:author_id(id, full_name, role),
-        attachments:message_attachments(
-          id,
-          name,
-          size,
-          mime_type,
-          storage_path,
-          created_at
-        )
-      `)
-      .single();
-
-    if (insertError) {
-      console.error('Error adding message:', insertError);
-      return { error: 'Failed to add message' };
-    }
-
-    return { message };
-  } catch (error) {
-    console.error('Error in addMessageAction:', error);
-    return { error: 'Failed to add message' };
+  if (error) {
+    return { message: null, error: error.message };
   }
+
+  return { message, error: null };
+}
+
+export async function getMessagesAction({ ticketId, isInternal }: GetMessagesParams) {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('ticket_messages')
+    .select('*')
+    .eq('ticket_id', ticketId)
+    .order('created_at', { ascending: true });
+
+  if (typeof isInternal === 'boolean') {
+    query = query.eq('is_internal', isInternal);
+  }
+
+  const { data: messages, error } = await query;
+
+  if (error) {
+    return { messages: [], error: error.message };
+  }
+
+  return { messages, error: null };
+}
+
+export async function deleteMessageAction({ messageId }: DeleteMessageParams) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('ticket_messages')
+    .delete()
+    .eq('id', messageId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, error: null };
 }
 
 export async function getInternalNotesAction(ticketId: string) {

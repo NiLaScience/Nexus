@@ -23,7 +23,7 @@ export function ProfileTab() {
     email: string;
     role: string;
   } | null>(null);
-  const [roles, setRoles] = useState<string[]>([]);
+  const [roles, setRoles] = useState<readonly string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -45,20 +45,10 @@ export function ProfileTab() {
           return;
         }
 
-        if (rolesResult.error) {
-          toast({
-            title: "Error",
-            description: rolesResult.error,
-            variant: "destructive",
-          });
-        }
-
         if (profileResult.profile) {
           setProfile(profileResult.profile);
         }
-        if (rolesResult.roles) {
-          setRoles(rolesResult.roles);
-        }
+        setRoles(rolesResult.roles);
       } catch (error) {
         toast({
           title: "Error",

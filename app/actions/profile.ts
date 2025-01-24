@@ -112,9 +112,9 @@ export async function getProfileAction() {
  * @returns Array of available roles
  */
 export async function getAvailableRolesAction() {
-  const supabase = await createClient();
-  
   // Since we can't query pg_enum directly through Supabase, return the hardcoded roles
   // that match our schema's check constraint: role in ('customer', 'agent', 'admin')
-  return { roles: ['customer', 'agent', 'admin'], error: null };
+  return {
+    roles: ['customer', 'agent', 'admin'] as const,
+  };
 } 

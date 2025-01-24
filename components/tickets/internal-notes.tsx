@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Paperclip, MessageSquare } from "lucide-react";
+import { Paperclip, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {

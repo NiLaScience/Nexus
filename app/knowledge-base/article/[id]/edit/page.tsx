@@ -3,21 +3,26 @@ import { ArticleEditor } from '@/components/knowledge-base/article-editor';
 import { DEFAULT_WORKSPACE_ID } from '@/types/custom-fields';
 import { notFound } from 'next/navigation';
 
-interface EditArticlePageProps {
-  params: {
-    id: string;
-  };
+interface PageProps {
+  params: Promise<{ id: string }>;
 }
 
-export default async function EditArticlePage({ params }: EditArticlePageProps) {
+async function getData(id: string) {
   const [article, categories] = await Promise.all([
-    getArticle(params.id).catch(() => null),
+    getArticle(id).catch(() => null),
     getCategories(),
   ]);
 
   if (!article) {
     notFound();
   }
+
+  return { article, categories };
+}
+
+export default async function Page({ params }: PageProps) {
+  const resolvedParams = await params;
+  const { article, categories } = await getData(resolvedParams.id);
 
   return (
     <div className="container mx-auto py-8">

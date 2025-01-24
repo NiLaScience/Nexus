@@ -39,16 +39,12 @@ interface Team {
 }
 
 interface PageProps {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }
 
 export default async function EditTemplatePage({ params }: PageProps) {
   const resolvedParams = await params;
-  const id = resolvedParams.id;
-  
-  return (
-    <EditTemplateClient id={id} />
-  )
+  return <EditTemplateClient id={resolvedParams.id} />;
 }
 
 function EditTemplateClient({ id }: { id: string }) {
@@ -62,7 +58,6 @@ function EditTemplateClient({ id }: { id: string }) {
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLoadingTeams, setIsLoadingTeams] = useState(true)
-  const [showPreview, setShowPreview] = useState(false)
 
   useEffect(() => {
     async function loadTeams() {
