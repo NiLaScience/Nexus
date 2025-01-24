@@ -11,6 +11,11 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
  * @returns Redirect response with success/error message
  */
 export async function signUpAction(formData: FormData) {
+  // Debug environment variables
+  console.log("Environment check:");
+  console.log("- NEXT_PUBLIC_SUPABASE_URL defined:", !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log("- SUPABASE_SERVICE_ROLE_KEY defined:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+  
   const email = formData.get("email")?.toString();
   const password = formData.get("password")?.toString();
   const role = formData.get("role")?.toString();
