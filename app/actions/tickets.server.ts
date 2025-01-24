@@ -215,4 +215,25 @@ export async function updateTicketTagsAction(ticketId: string, tags: string[]) {
     console.error("Error updating ticket tags:", error);
     return { error: (error as Error).message };
   }
+}
+
+/**
+ * Gets all available tags
+ * @returns Object containing tags or error
+ */
+export async function getAvailableTagsAction() {
+  try {
+    const supabase = await createClient();
+    const { data: tags, error } = await supabase
+      .from('tags')
+      .select('id, name')
+      .order('name');
+
+    if (error) throw error;
+
+    return { tags };
+  } catch (error) {
+    console.error('Error fetching tags:', error);
+    return { error: (error as Error).message };
+  }
 } 

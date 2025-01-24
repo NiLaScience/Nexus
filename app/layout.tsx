@@ -8,6 +8,7 @@ import { BarChart2, BookOpen, Home, Inbox, Plus, Settings } from "lucide-react";
 import { Chatbot } from "@/components/chat/chatbot";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
+import { createClient } from "@/utils/supabase/server";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -24,11 +25,21 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .single();
+
+  const isCustomer = profile?.role === 'customer';
+
   return (
     <html lang="en" className={geistSans.className} suppressHydrationWarning>
       <body className="bg-background text-foreground">
@@ -42,12 +53,14 @@ export default function RootLayout({
             {/* Sidebar Navigation */}
             <aside className="w-16 bg-muted border-r border-border h-full flex flex-col items-center py-6">
               <nav className="flex flex-col gap-6">
-                <Link
-                  href="/"
-                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
-                >
-                  <Home className="w-5 h-5" />
-                </Link>
+                {!isCustomer && (
+                  <Link
+                    href="/dashboard"
+                    className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
+                  >
+                    <Home className="w-5 h-5" />
+                  </Link>
+                )}
                 <Link
                   href="/tickets"
                   className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
@@ -66,12 +79,14 @@ export default function RootLayout({
                 >
                   <BookOpen className="w-5 h-5" />
                 </Link>
-                <Link
-                  href="/analytics"
-                  className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
-                >
-                  <BarChart2 className="w-5 h-5" />
-                </Link>
+                {!isCustomer && (
+                  <Link
+                    href="/analytics"
+                    className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
+                  >
+                    <BarChart2 className="w-5 h-5" />
+                  </Link>
+                )}
                 <Link
                   href="/settings"
                   className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"

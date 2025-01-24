@@ -35,7 +35,7 @@ This checklist provides a step-by-step guide for implementing new features into 
     - [x] Create new article button for admins
     - [x] Implement article editor component
     - [x] Add category management (create, edit, delete)
-- [ ] **Implement View Counts:** Update articles table and backend to track views, provide stats.
+- [x] **Implement View Counts:** Update articles table and backend to track views, provide stats.
 
 ## Phase 2:  Notification and Email Integrations
 

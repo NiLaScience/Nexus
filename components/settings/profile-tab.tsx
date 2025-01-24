@@ -11,9 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
 import { updateProfileAction } from "@/app/actions/auth";
+import { getProfileAction } from "@/app/actions/profile";
 import { useToast } from "@/components/ui/use-toast";
 import { AgentSkills } from "./agent-skills";
 
@@ -30,28 +30,32 @@ export function ProfileTab() {
 
   useEffect(() => {
     async function loadProfile() {
-      const supabase = createClient();
-      
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        // Get the user's profile
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-          
+      try {
+        const { profile: profileData, error } = await getProfileAction();
+        if (error) {
+          toast({
+            title: "Error",
+            description: error,
+            variant: "destructive",
+          });
+          return;
+        }
         if (profileData) {
           setProfile(profileData);
         }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load profile",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
 
     loadProfile();
-  }, []);
+  }, [toast]);
 
   const handleSave = async () => {
     if (!profile) return;

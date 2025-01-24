@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
 import type { CustomField } from "@/types/custom-fields";
+import { getAvailableTagsAction } from "@/app/actions/tickets.server";
 
 interface TicketFormProps {
   onSubmit: (formData: FormData) => Promise<any>;
@@ -24,6 +25,7 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
   const router = useRouter();
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [availableTags, setAvailableTags] = useState<{ id: string; name: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [priority, setPriority] = useState<string>("medium");
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -32,6 +34,7 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
 
   useEffect(() => {
     loadWorkspaceSettings();
+    loadAvailableTags();
   }, []);
 
   const loadWorkspaceSettings = async () => {
@@ -50,6 +53,17 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
       console.error('Failed to load workspace settings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAvailableTags = async () => {
+    try {
+      const { tags: fetchedTags } = await getAvailableTagsAction();
+      if (fetchedTags) {
+        setAvailableTags(fetchedTags);
+      }
+    } catch (error) {
+      console.error('Failed to load tags:', error);
     }
   };
 
@@ -225,8 +239,34 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
             ))}
           </div>
           <div className="flex gap-2">
+            <Select
+              value={tagInput}
+              onValueChange={(value) => {
+                setTagInput(value);
+                if (value && !tags.includes(value)) {
+                  setTags([...tags, value]);
+                  setTagInput("");
+                }
+              }}
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Select or type a tag" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableTags.map((tag) => (
+                  <SelectItem key={tag.id} value={tag.name}>
+                    {tag.name}
+                  </SelectItem>
+                ))}
+                {tagInput && !availableTags.some(t => t.name === tagInput) && (
+                  <SelectItem value={tagInput}>
+                    Create "{tagInput}"
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
             <Input
-              placeholder="Add tag"
+              placeholder="Or type a new tag"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e) => {

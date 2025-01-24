@@ -254,4 +254,34 @@ export async function getTrendingArticles() {
   }
 
   return articles;
+}
+
+export async function searchArticles(query: string) {
+  const supabase = await createClient();
+
+  const { data: articles, error } = await supabase
+    .from('articles')
+    .select(`
+      id,
+      title,
+      content,
+      view_count,
+      upvote_count,
+      downvote_count,
+      created_at,
+      updated_at,
+      categories (
+        id,
+        name
+      )
+    `)
+    .or(`title.ilike.%${query}%,content.ilike.%${query}%`)
+    .order('view_count', { ascending: false });
+
+  if (error) {
+    console.error('Error searching articles:', error);
+    throw new Error('Failed to search articles');
+  }
+
+  return articles;
 } 

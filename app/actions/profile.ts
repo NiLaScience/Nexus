@@ -79,4 +79,30 @@ export async function updateUserActiveStatusAction(userId: string, isActive: boo
 
   revalidatePath('/settings');
   return { success: true };
+}
+
+/**
+ * Gets the current user's profile information
+ * @returns Object containing profile data or error
+ */
+export async function getProfileAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated" };
+  }
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching profile:', error);
+    return { error: "Failed to fetch profile" };
+  }
+
+  return { profile };
 } 
