@@ -179,6 +179,9 @@ create table tickets (
     created_at timestamptz not null default now()
 );
 
+-- Enable real-time for tickets
+alter publication supabase_realtime add table tickets;
+
 --
 -- Final validate_ticket function:
 -- (incorporates the logic that customers must belong to the org, 
@@ -241,6 +244,9 @@ create table ticket_messages (
     created_at timestamptz not null default now()
 );
 
+-- Enable real-time for ticket_messages
+alter publication supabase_realtime add table ticket_messages;
+
 create table message_attachments (
     id uuid primary key default gen_random_uuid(),
     message_id uuid not null references ticket_messages(id) on delete cascade,
@@ -250,6 +256,9 @@ create table message_attachments (
     storage_path text not null,
     created_at timestamptz not null default now()
 );
+
+-- Enable real-time for message_attachments
+alter publication supabase_realtime add table message_attachments;
 
 create index message_attachments_message_id_idx
   on message_attachments(message_id);
@@ -275,6 +284,9 @@ create table ticket_events (
     new_value text,
     created_at timestamptz not null default now()
 );
+
+-- Enable real-time for ticket_events
+alter publication supabase_realtime add table ticket_events;
 
 --
 -- 3) INDEXES
@@ -815,24 +827,7 @@ create policy "Users can create tickets in their organization"
 create policy "Users can update their own tickets"
   on tickets for update
   using (customer_id = auth.uid())
-  with check (
-    organization_id = auth.get_user_organization()
-    and (
-      assigned_to is null 
-      or exists(
-        select 1 from profiles
-        where id = tickets.assigned_to
-        and role in ('admin', 'agent')
-      )
-    )
-    and (
-      team_id is null 
-      or exists(
-        select 1 from teams
-        where id = tickets.team_id
-      )
-    )
-  );
+  with check (organization_id = auth.get_user_organization());
 
 --== TICKET_MESSAGES ==--
 create policy "Admins and agents can read all messages"
@@ -938,10 +933,24 @@ create policy "Everyone can read tags"
   on tags for select
   using (true);
 
+create policy "Authenticated users can create tags"
+  on tags for insert
+  with check (auth.role() = 'authenticated');
+
 --== TICKET_TAGS ==--
 create policy "Admins and agents can manage ticket tags"
   on ticket_tags for all
   using (auth.is_admin_or_agent());
+
+create policy "Users can manage tags on their own tickets"
+  on ticket_tags for all
+  using (
+    exists(
+      select 1 from tickets
+      where tickets.id = ticket_tags.ticket_id
+        and tickets.customer_id = auth.uid()
+    )
+  );
 
 create policy "Users can read ticket tags"
   on ticket_tags for select

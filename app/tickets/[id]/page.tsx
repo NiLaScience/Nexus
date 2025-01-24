@@ -10,6 +10,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getTicketMessagesAction, getInternalNotesAction } from "@/app/actions/tickets/messages.server";
 import { getTicketEventsAction } from "@/app/actions/tickets/events.server";
 import { getRelatedTicketsAction } from "@/app/actions/tickets/related.server";
+import { getProfileAction } from "@/app/actions/profile";
 import type { TicketTag } from "@/types/ticket";
 
 interface PageProps {
@@ -17,9 +18,12 @@ interface PageProps {
 }
 
 export default async function TicketPage({ params }: PageProps) {
-  const resolvedParams = await params;
-  const id = resolvedParams.id;
+  const { id } = await params;
   const supabase = await createClient();
+
+  // Get the current user's profile
+  const { profile } = await getProfileAction();
+  const isCustomer = profile?.role === 'customer';
 
   // Fetch ticket with related profiles and tags
   const { data: ticket, error: ticketError } = await supabase
@@ -99,10 +103,12 @@ export default async function TicketPage({ params }: PageProps) {
             initialMessages={messagesResult.messages || []}
           />
 
-          <InternalNotes
-            ticketId={id}
-            initialNotes={internalNotesResult.messages || []}
-          />
+          {!isCustomer && (
+            <InternalNotes
+              ticketId={id}
+              initialNotes={internalNotesResult.messages || []}
+            />
+          )}
 
           <RelatedTickets tickets={relatedTicketsResult.tickets || []} />
         </div>

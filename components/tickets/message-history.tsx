@@ -98,46 +98,118 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
     // Initial load
     loadMessages();
 
-    let reloadTimeout: NodeJS.Timeout;
-
-    // Set up real-time subscription for both messages and attachments
+    // Set up real-time subscription for messages
     const channel = supabase
       .channel('messages-changes')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'ticket_messages',
           filter: `ticket_id=eq.${ticketId} and is_internal=eq.false`
         },
-        () => {
-          // Clear any existing timeout
-          if (reloadTimeout) clearTimeout(reloadTimeout);
-          // Set a new timeout to reload after a delay
-          reloadTimeout = setTimeout(loadMessages, 500);
+        async (payload) => {
+          console.log("New message received:", payload);
+          // Fetch the complete message data including author details
+          const { data: completeMessage } = await supabase
+            .from('ticket_messages')
+            .select(`
+              id,
+              ticket_id,
+              content,
+              created_at,
+              is_internal,
+              source,
+              author:profiles!ticket_messages_author_id_fkey(id, full_name, role),
+              attachments:message_attachments(
+                id,
+                name,
+                size,
+                mime_type,
+                storage_path,
+                created_at
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single();
+
+          if (completeMessage) {
+            console.log("Complete message data:", completeMessage);
+            // Add the new message to the list with full details
+            setMessages(prev => [...prev, completeMessage as unknown as TicketMessage]);
+          }
         }
       )
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
-          table: 'message_attachments',
-          filter: `message_id=in.(select id from ticket_messages where ticket_id=${ticketId} and is_internal=false)`
+          table: 'ticket_messages',
+          filter: `ticket_id=eq.${ticketId} and is_internal=eq.false`
         },
-        () => {
-          // Clear any existing timeout
-          if (reloadTimeout) clearTimeout(reloadTimeout);
-          // Set a new timeout to reload after a delay
-          reloadTimeout = setTimeout(loadMessages, 500);
+        (payload) => {
+          console.log("Message updated:", payload);
+          const updatedMessage = payload.new as TicketMessage;
+          // Update the message in the list
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === updatedMessage.id ? updatedMessage : msg
+            )
+          );
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'message_attachments'
+        },
+        async (payload) => {
+          console.log("New attachment added:", payload);
+          const messageId = payload.new.message_id;
+          // Fetch the updated message with its attachments
+          const { data: updatedMessage } = await supabase
+            .from('ticket_messages')
+            .select(`
+              id,
+              ticket_id,
+              content,
+              created_at,
+              is_internal,
+              source,
+              author:profiles!ticket_messages_author_id_fkey(id, full_name, role),
+              attachments:message_attachments(
+                id,
+                name,
+                size,
+                mime_type,
+                storage_path,
+                created_at
+              )
+            `)
+            .eq('id', messageId)
+            .single();
 
-    // Cleanup subscription and timeout
+          if (updatedMessage) {
+            // Update the message in the list with new attachments
+            setMessages(prev => 
+              prev.map(msg => 
+                msg.id === messageId ? updatedMessage as unknown as TicketMessage : msg
+              )
+            );
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("Message subscription status:", status);
+      });
+
+    // Cleanup subscription
     return () => {
-      if (reloadTimeout) clearTimeout(reloadTimeout);
+      console.log("Cleaning up message subscription");
       supabase.removeChannel(channel);
     };
   }, [ticketId, supabase, loadMessages]);

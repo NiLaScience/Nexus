@@ -10,19 +10,42 @@ create table notifications (
   created_at timestamptz not null default now()
 );
 
+-- Enable real-time for notifications
+alter publication supabase_realtime add table notifications;
+
 -- Add indexes
 create index notifications_user_id_idx on notifications(user_id);
 create index notifications_ticket_id_idx on notifications(ticket_id);
 create index notifications_created_at_idx on notifications(created_at);
 create index notifications_is_read_idx on notifications(is_read);
 
+-- Enable RLS
+alter table notifications enable row level security;
+
 -- Add RLS policies
 create policy "Users can view their own notifications"
   on notifications for select
-  using (auth.uid() = user_id);
+  using (
+    exists (
+      select 1 from profiles
+      where profiles.id = notifications.user_id
+      and profiles.id = auth.uid()
+    )
+  );
 
 create policy "System can create notifications"
   on notifications for insert
+  with check (true);
+
+create policy "Users can update their own notifications"
+  on notifications for update
+  using (
+    exists (
+      select 1 from profiles
+      where profiles.id = notifications.user_id
+      and profiles.id = auth.uid()
+    )
+  )
   with check (true);
 
 -- Function to create a notification
@@ -184,7 +207,4 @@ create trigger ticket_notification_trigger
   after insert
   on ticket_events
   for each row
-  execute function ticket_notification_trigger();
-
--- Enable RLS
-alter table notifications enable row level security; 
+  execute function ticket_notification_trigger(); 

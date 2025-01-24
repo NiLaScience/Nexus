@@ -33,6 +33,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
 import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
 import type { TicketStatus as WorkspaceTicketStatus } from "@/types/workspace-settings";
+import { getProfileAction } from "@/app/actions/profile";
 
 interface Agent {
   id: string;
@@ -64,6 +65,7 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
   const [tags, setTags] = useState<string[]>(initialTags);
   const [tagInput, setTagInput] = useState("");
   const [isEditingTags, setIsEditingTags] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -104,6 +106,14 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
       }
     }
     loadWorkspaceSettings();
+  }, []);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { profile } = await getProfileAction();
+      setUserRole(profile?.role || null);
+    };
+    loadProfile();
   }, []);
 
   const getStatusDisplay = (statusName: string) => {
@@ -272,6 +282,8 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
     }
   };
 
+  const isCustomer = userRole === 'customer';
+
   return (
     <>
       <div className="flex flex-col gap-4">
@@ -295,26 +307,30 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
                     className="bg-muted text-muted-foreground px-2 py-1 rounded text-xs flex items-center gap-1"
                   >
                     {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      className="hover:text-foreground"
-                      disabled={isLoading}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    {!isCustomer && (
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="hover:text-foreground"
+                        disabled={isLoading}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </span>
                 ))}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6"
-                  onClick={() => setIsEditingTags(!isEditingTags)}
-                >
-                  <PlusCircle className="w-4 h-4" />
-                </Button>
+                {!isCustomer && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6"
+                    onClick={() => setIsEditingTags(!isEditingTags)}
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
-              {isEditingTags && (
+              {isEditingTags && !isCustomer && (
                 <div className="flex gap-2">
                   <Input
                     placeholder="Add tag"
@@ -342,161 +358,194 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
             </div>
           </div>
           <div className="flex gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" disabled={isLoading} className="w-[180px] h-9 justify-start">
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  <span className="truncate">
+            {isCustomer ? (
+              <>
+                <div className="w-[180px] h-9 flex items-center px-3 bg-muted rounded-md text-sm">
+                  <UserPlus className="w-4 h-4 mr-2 text-muted-foreground" />
+                  <span className="truncate text-muted-foreground">
                     {assignedTo ? `${assignedTo.full_name} (${assignedTo.role})` : 'Unassigned'}
                   </span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[180px]">
-                <div className="space-y-2">
-                  <h4 className="font-medium px-2 py-1.5 text-sm text-muted-foreground">Assign To</h4>
-                  <Select onValueChange={handleAssignment}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select agent" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {agents.map((agent) => (
-                        <SelectItem key={agent.id} value={agent.id}>
-                          {agent.full_name || 'Unnamed'} ({agent.role})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
-              </PopoverContent>
-            </Popover>
+                <div className="w-[180px] h-9 flex items-center px-3 bg-muted rounded-md text-sm">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(priority)}`}>
+                    {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                  </span>
+                </div>
+                <div className="w-[180px] h-9 flex items-center px-3 bg-muted rounded-md text-sm">
+                  <span 
+                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                    style={{ 
+                      color: getStatusColor(status),
+                      backgroundColor: `${getStatusColor(status)}10`
+                    }}
+                  >
+                    {getStatusDisplay(status)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={isLoading} className="w-[180px] h-9 justify-start">
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      <span className="truncate">
+                        {assignedTo ? `${assignedTo.full_name} (${assignedTo.role})` : 'Unassigned'}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[180px]">
+                    <div className="space-y-2">
+                      <h4 className="font-medium px-2 py-1.5 text-sm text-muted-foreground">Assign To</h4>
+                      <Select onValueChange={handleAssignment}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select agent" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {agents.map((agent) => (
+                            <SelectItem key={agent.id} value={agent.id}>
+                              {agent.full_name || 'Unnamed'} ({agent.role})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </PopoverContent>
+                </Popover>
 
-            <Select 
-              defaultValue={priority} 
-              value={priority}
-              onValueChange={handlePriorityChange} 
-              disabled={isLoading}
-            >
-              <SelectTrigger className="w-[180px] h-9">
-                <SelectValue placeholder="Priority">
-                  {priority && (
-                    <span 
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(priority)}`}
-                    >
-                      {priority.charAt(0).toUpperCase() + priority.slice(1)}
-                    </span>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
-                  Set Priority
-                </div>
-                {["low", "medium", "high", "urgent"].map((p) => (
-                  <SelectItem 
-                    key={p} 
-                    value={p}
-                  >
-                    <span
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(p)}`}
-                    >
-                      {p.charAt(0).toUpperCase() + p.slice(1)}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Select 
-              defaultValue={status} 
-              value={status}
-              onValueChange={handleStatusChange} 
-              disabled={isLoading}
-            >
-              <SelectTrigger className="w-[180px] h-9">
-                <SelectValue placeholder="Status">
-                  {status && (
-                    <span 
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                      style={{ 
-                        color: getStatusColor(status),
-                        backgroundColor: `${getStatusColor(status)}10`
-                      }}
-                    >
-                      {getStatusDisplay(status)}
-                    </span>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
-                  Set Status
-                </div>
-                {workspaceStatuses.map((statusOption) => (
-                  <SelectItem 
-                    key={statusOption.name} 
-                    value={statusOption.name}
-                  >
-                    <span
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                      style={{ 
-                        color: statusOption.color,
-                        backgroundColor: `${statusOption.color}10`
-                      }}
-                    >
-                      {statusOption.display}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <Select 
+                  defaultValue={priority} 
+                  value={priority}
+                  onValueChange={handlePriorityChange} 
+                  disabled={isLoading}
+                >
+                  <SelectTrigger className="w-[180px] h-9">
+                    <SelectValue placeholder="Priority">
+                      {priority && (
+                        <span 
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(priority)}`}
+                        >
+                          {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                        </span>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                      Set Priority
+                    </div>
+                    {["low", "medium", "high", "urgent"].map((p) => (
+                      <SelectItem 
+                        key={p} 
+                        value={p}
+                      >
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(p)}`}
+                        >
+                          {p.charAt(0).toUpperCase() + p.slice(1)}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select 
+                  defaultValue={status} 
+                  value={status}
+                  onValueChange={handleStatusChange} 
+                  disabled={isLoading}
+                >
+                  <SelectTrigger className="w-[180px] h-9">
+                    <SelectValue placeholder="Status">
+                      {status && (
+                        <span 
+                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                          style={{ 
+                            color: getStatusColor(status),
+                            backgroundColor: `${getStatusColor(status)}10`
+                          }}
+                        >
+                          {getStatusDisplay(status)}
+                        </span>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                      Set Status
+                    </div>
+                    {workspaceStatuses.map((statusOption) => (
+                      <SelectItem 
+                        key={statusOption.name} 
+                        value={statusOption.name}
+                      >
+                        <span
+                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                          style={{ 
+                            color: statusOption.color,
+                            backgroundColor: `${statusOption.color}10`
+                          }}
+                        >
+                          {statusOption.display}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      <AlertDialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Change Ticket Status</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to change the ticket status to "{pendingStatus}"?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmStatusChange}>Continue</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {!isCustomer && (
+        <>
+          <AlertDialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Change Ticket Status</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to change the ticket status to "{pendingStatus}"?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmStatusChange}>Continue</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-      <AlertDialog open={showPriorityDialog} onOpenChange={setShowPriorityDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Change Ticket Priority</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to change the ticket priority to "{pendingPriority}"?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmPriorityChange}>Continue</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <AlertDialog open={showPriorityDialog} onOpenChange={setShowPriorityDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Change Ticket Priority</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to change the ticket priority to "{pendingPriority}"?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmPriorityChange}>Continue</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-      <AlertDialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reassign Ticket</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to assign this ticket to {pendingAgent?.name}?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAssignment}>Continue</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <AlertDialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reassign Ticket</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to assign this ticket to {pendingAgent?.name}?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmAssignment}>Continue</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
     </>
   );
 } 

@@ -18,17 +18,25 @@ const nextConfig = {
     config.externals = [...config.externals, 'canvas', 'jsdom'];
     return config;
   },
-  headers: async () => {
+  async headers() {
     return [
       {
         source: '/:path*',
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' https:; connect-src 'self' https:;",
-          },
+            value: `
+              default-src 'self';
+              script-src 'self' 'unsafe-eval' 'unsafe-inline';
+              style-src 'self' 'unsafe-inline';
+              img-src 'self' blob: data:;
+              font-src 'self';
+              connect-src 'self' https: http://127.0.0.1:54321 ws://127.0.0.1:54321 wss://127.0.0.1:54321;
+              frame-ancestors 'none';
+            `.replace(/\s{2,}/g, ' ').trim()
+          }
         ],
-      },
+      }
     ];
   },
 };
