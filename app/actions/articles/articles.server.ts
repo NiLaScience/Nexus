@@ -213,13 +213,16 @@ export async function deleteCategory(id: string) {
 export async function voteArticle(id: string, voteType: 'up' | 'down') {
   const supabase = await createClient();
 
+  console.log('Attempting to vote on article:', { id, voteType });
+
   const { error } = await supabase.rpc('vote_article', {
-    article_id: id,
-    vote_type: voteType
+    target_article_id: id,
+    target_vote_type: voteType
   });
 
   if (error) {
-    throw new Error('Failed to vote on article');
+    console.error('Error voting on article:', error);
+    throw new Error(`Failed to vote on article: ${error.message}`);
   }
 
   revalidatePath('/knowledge-base');
