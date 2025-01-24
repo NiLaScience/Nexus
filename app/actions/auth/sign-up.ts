@@ -60,9 +60,6 @@ export async function signUpAction(formData: FormData) {
         persistSession: false,
         autoRefreshToken: false,
       },
-      db: {
-        schema: 'public'
-      },
       cookies: {
         get(name: string) {
           return cookieStore.get(name)?.value;
@@ -90,31 +87,6 @@ export async function signUpAction(formData: FormData) {
       },
     }
   );
-
-  // Sign up the user with regular client
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: `${origin}/auth/callback`,
-      data: {
-        role: role, // Store role in auth.users metadata
-      },
-    },
-  });
-
-  if (authError) {
-    console.error(authError.code + " " + authError.message);
-    return encodedRedirect("error", "/sign-up", authError.message);
-  }
-
-  if (!authData.user) {
-    return encodedRedirect(
-      "error",
-      "/sign-up",
-      "Something went wrong during sign up",
-    );
-  }
 
   // For customers, get or create their organization based on selection or new org info
   let finalOrganizationId = null;
@@ -193,6 +165,31 @@ export async function signUpAction(formData: FormData) {
       );
     }
     finalOrganizationId = defaultOrg.id;
+  }
+
+  // Sign up the user with regular client
+  const { data: authData, error: authError } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${origin}/auth/callback`,
+      data: {
+        role: role, // Store role in auth.users metadata
+      },
+    },
+  });
+
+  if (authError) {
+    console.error(authError.code + " " + authError.message);
+    return encodedRedirect("error", "/sign-up", authError.message);
+  }
+
+  if (!authData.user) {
+    return encodedRedirect(
+      "error",
+      "/sign-up",
+      "Something went wrong during sign up",
+    );
   }
 
   // Create the profile - organization_id now required for all roles
