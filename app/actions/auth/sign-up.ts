@@ -3,7 +3,29 @@
 import { encodedRedirect } from "@/utils/utils";
 import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
+
+// Helper function to wait for user record to exist in auth.users
+async function waitForUser(serviceClient: SupabaseClient, userId: string) {
+  let attempts = 5;
+  while (attempts > 0) {
+    console.log(`Checking for user ${userId}, attempt ${6 - attempts}`);
+    const { data, error } = await serviceClient.auth.admin.getUserById(userId);
+
+    if (data?.user) {
+      console.log("User found in auth.users");
+      return true;
+    }
+    if (error) console.log("User not found, retrying...", error.message);
+    
+    attempts--;
+    if (attempts > 0) {
+      console.log("Waiting 1 second before next attempt...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  return false;
+}
 
 /**
  * Sign up a new user with the provided form data
@@ -93,6 +115,17 @@ export async function signUpAction(formData: FormData) {
       "error",
       "/sign-up",
       "Something went wrong during sign up",
+    );
+  }
+
+  // Wait for user to exist in auth.users
+  const userExists = await waitForUser(serviceClient, authData.user.id);
+  if (!userExists) {
+    console.error("User record not found in auth.users after multiple attempts");
+    return encodedRedirect(
+      "error",
+      "/sign-up",
+      "Failed to create user profile - please try again",
     );
   }
 
