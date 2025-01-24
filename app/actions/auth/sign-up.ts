@@ -4,6 +4,7 @@ import { encodedRedirect } from "@/utils/utils";
 import { createClient } from "@/utils/supabase/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { headers, cookies } from "next/headers";
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Sign up a new user with the provided form data
@@ -37,41 +38,9 @@ export async function signUpAction(formData: FormData) {
 
   // Create regular client for auth and service client for database operations
   const supabase = await createClient();
-  const cookieStore = await cookies();
-  const serviceClient = createServerClient(
+  const serviceClient = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch (error) {
-            // Handle cookie errors in development
-            if (process.env.NODE_ENV === 'development') {
-              console.error('Error setting cookie:', error);
-            }
-          }
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.delete({ name, ...options });
-          } catch (error) {
-            // Handle cookie errors in development
-            if (process.env.NODE_ENV === 'development') {
-              console.error('Error removing cookie:', error);
-            }
-          }
-        },
-      },
-    }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
   // Sign up the user with regular client
