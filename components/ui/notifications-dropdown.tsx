@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createBrowserClient } from '@supabase/ssr';
 import { Database } from "@/lib/database.types";
 
 import {
@@ -19,7 +19,10 @@ import { Badge } from "@/components/ui/badge";
 type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 
 // Create a single Supabase client instance
-const supabase = createClientComponentClient<Database>();
+const supabase = createBrowserClient<Database>(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export function NotificationsDropdown() {
   const router = useRouter();
