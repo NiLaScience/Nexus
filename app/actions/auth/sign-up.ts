@@ -2,8 +2,7 @@
 
 import { encodedRedirect } from "@/utils/utils";
 import { createClient } from "@/utils/supabase/server";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { headers, cookies } from "next/headers";
+import { headers } from "next/headers";
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
