@@ -12,8 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEffect, useState } from "react";
-import { updateProfileAction } from "@/app/actions/auth";
-import { getProfileAction } from "@/app/actions/profile";
+import { updateProfileAction, getProfileAction, getAvailableRolesAction } from "@/app/actions/profile";
 import { useToast } from "@/components/ui/use-toast";
 import { AgentSkills } from "./agent-skills";
 
@@ -24,29 +23,46 @@ export function ProfileTab() {
     email: string;
     role: string;
   } | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    async function loadProfile() {
+    async function loadData() {
       try {
-        const { profile: profileData, error } = await getProfileAction();
-        if (error) {
+        const [profileResult, rolesResult] = await Promise.all([
+          getProfileAction(),
+          getAvailableRolesAction()
+        ]);
+
+        if (profileResult.error) {
           toast({
             title: "Error",
-            description: error,
+            description: profileResult.error,
             variant: "destructive",
           });
           return;
         }
-        if (profileData) {
-          setProfile(profileData);
+
+        if (rolesResult.error) {
+          toast({
+            title: "Error",
+            description: rolesResult.error,
+            variant: "destructive",
+          });
+        }
+
+        if (profileResult.profile) {
+          setProfile(profileResult.profile);
+        }
+        if (rolesResult.roles) {
+          setRoles(rolesResult.roles);
         }
       } catch (error) {
         toast({
           title: "Error",
-          description: "Failed to load profile",
+          description: "Failed to load profile data",
           variant: "destructive",
         });
       } finally {
@@ -54,7 +70,7 @@ export function ProfileTab() {
       }
     }
 
-    loadProfile();
+    loadData();
   }, [toast]);
 
   const handleSave = async () => {
@@ -78,6 +94,8 @@ export function ProfileTab() {
           title: "Success",
           description: "Profile updated successfully",
         });
+        // Refresh the page to update navigation and permissions
+        window.location.reload();
       }
     } catch (error) {
       toast({
@@ -138,12 +156,14 @@ export function ProfileTab() {
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select role" />
+                <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="agent">Support Agent</SelectItem>
-                <SelectItem value="admin">Administrator</SelectItem>
-                <SelectItem value="manager">Team Manager</SelectItem>
+                {roles.map(role => (
+                  <SelectItem key={role} value={role}>
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

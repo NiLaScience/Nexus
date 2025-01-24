@@ -15,6 +15,9 @@ export async function signUpAction(formData: FormData) {
   const password = formData.get("password")?.toString();
   const role = formData.get("role")?.toString();
   const fullName = formData.get("full_name")?.toString();
+  const organizationId = formData.get("organization_id")?.toString();
+  const organizationName = formData.get("organization_name")?.toString();
+  const organizationDomain = formData.get("organization_domain")?.toString();
   const origin = (await headers()).get("origin");
 
   if (!email || !password || !role || !fullName) {
@@ -33,6 +36,17 @@ export async function signUpAction(formData: FormData) {
       "/sign-up",
       "Invalid role selected",
     );
+  }
+
+  // For customers, validate organization info
+  if (role === 'customer') {
+    if (!organizationId && !organizationName) {
+      return encodedRedirect(
+        "error",
+        "/sign-up",
+        "Please select an organization or create a new one",
+      );
+    }
   }
 
   // Create regular client for auth and service client for database operations
@@ -95,28 +109,51 @@ export async function signUpAction(formData: FormData) {
     );
   }
 
-  // For customers, get or create their organization based on email domain
-  // For admins and agents, use or create the default organization
-  let organizationId = null;
+  // For customers, get or create their organization based on selection or new org info
+  let finalOrganizationId = null;
 
   if (role === 'customer') {
-    const domain = email.split('@')[1];
-    
-    // Try to find existing organization
-    const { data: existingOrg } = await serviceClient
-      .from('organizations')
-      .select('id')
-      .eq('domain', domain)
-      .single();
+    if (organizationId) {
+      // Use selected organization
+      const { data: existingOrg } = await serviceClient
+        .from('organizations')
+        .select('id')
+        .eq('id', organizationId)
+        .single();
 
-    if (existingOrg) {
-      organizationId = existingOrg.id;
+      if (!existingOrg) {
+        return encodedRedirect(
+          "error",
+          "/sign-up",
+          "Selected organization not found",
+        );
+      }
+      finalOrganizationId = organizationId;
     } else {
-      // Create new organization based on domain
+      // Create new organization
+      const domain = organizationDomain || email.split('@')[1];
+      const name = organizationName || domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
+      
+      // Check if organization with domain already exists
+      const { data: existingOrg } = await serviceClient
+        .from('organizations')
+        .select('id')
+        .eq('domain', domain)
+        .single();
+
+      if (existingOrg) {
+        return encodedRedirect(
+          "error",
+          "/sign-up",
+          "An organization with this domain already exists. Please select it from the list.",
+        );
+      }
+
+      // Create new organization
       const { data: newOrg, error: orgError } = await serviceClient
         .from('organizations')
         .insert({
-          name: domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1),
+          name: name,
           domain: domain,
         })
         .select('id')
@@ -124,13 +161,16 @@ export async function signUpAction(formData: FormData) {
 
       if (orgError) {
         console.error("Organization creation error:", orgError);
-        // Continue with profile creation, we can fix org later
-      } else {
-        organizationId = newOrg.id;
+        return encodedRedirect(
+          "error",
+          "/sign-up",
+          "Failed to create organization",
+        );
       }
+      finalOrganizationId = newOrg.id;
     }
   } else {
-    // For admins and agents, use or create the default organization
+    // For admins and agents, use the default organization
     const { data: defaultOrg } = await serviceClient
       .from('organizations')
       .select('id')
@@ -138,7 +178,7 @@ export async function signUpAction(formData: FormData) {
       .single();
 
     if (defaultOrg) {
-      organizationId = defaultOrg.id;
+      finalOrganizationId = defaultOrg.id;
     } else {
       // Create default organization if it doesn't exist
       const { data: newOrg, error: orgError } = await serviceClient
@@ -153,9 +193,13 @@ export async function signUpAction(formData: FormData) {
 
       if (orgError) {
         console.error("Default organization creation error:", orgError);
-      } else {
-        organizationId = newOrg.id;
+        return encodedRedirect(
+          "error",
+          "/sign-up",
+          "Failed to create default organization",
+        );
       }
+      finalOrganizationId = newOrg.id;
     }
   }
 
@@ -164,30 +208,38 @@ export async function signUpAction(formData: FormData) {
     id: authData.user.id,
     role: role,
     full_name: fullName,
-    email: email,  // Add email field
-    organization_id: organizationId,
+    email: email,
+    organization_id: finalOrganizationId,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
 
   if (profileError) {
     console.error("Profile creation error:", profileError);
-    // We don't return this error to the user since they've already signed up
-    // The profile can be created later if needed
+    return encodedRedirect(
+      "error",
+      "/sign-up",
+      "Failed to create user profile",
+    );
   }
 
   // Only add organization membership for customers
-  if (role === 'customer' && organizationId) {
+  if (role === 'customer' && finalOrganizationId) {
     const { error: memberError } = await serviceClient
       .from('organization_members')
       .insert({
-        organization_id: organizationId,
+        organization_id: finalOrganizationId,
         user_id: authData.user.id,
         role: 'member'
       });
 
     if (memberError) {
       console.error("Organization member creation error:", memberError);
+      return encodedRedirect(
+        "error",
+        "/sign-up",
+        "Failed to add user to organization",
+      );
     }
   }
 

@@ -635,6 +635,8 @@ drop policy if exists "Users can create their own profile" on profiles;
 drop policy if exists "Users can update their own profile" on profiles;
 drop policy if exists "Admins can read all profiles" on profiles;
 drop policy if exists "Admins can update all profiles" on profiles;
+drop policy if exists "Users can read profiles in their organization" on profiles;
+drop policy if exists "Users can read relevant profiles" on profiles;
 
 create policy "Users can read their own profile"
   on profiles for select
@@ -655,6 +657,34 @@ create policy "Admins can read all profiles"
 create policy "Admins can update all profiles"
   on profiles for update
   using (auth.is_admin());
+
+create policy "Users can read relevant profiles"
+  on profiles for select
+  using (
+    -- User can read profiles in their organization (for customers)
+    (organization_id = auth.get_user_organization())
+    or
+    -- User can read agents/admins assigned to their organization through teams
+    (
+      role in ('agent', 'admin') 
+      and (
+        -- Agent is in a team assigned to the organization
+        exists (
+          select 1 from team_organizations org_team
+          join team_members tm on tm.team_id = org_team.team_id
+          where org_team.organization_id = auth.get_user_organization()
+          and tm.user_id = profiles.id
+        )
+        or
+        -- Agent is directly assigned to a ticket in the organization
+        exists (
+          select 1 from tickets t
+          where t.organization_id = auth.get_user_organization()
+          and t.assigned_to = profiles.id
+        )
+      )
+    )
+  );
 
 --== SKILLS ==--
 create policy "Everyone can read skills"
@@ -691,6 +721,14 @@ create policy "Users can read their own organization"
   on organizations for select
   using (id = auth.get_user_organization());
 
+create policy "Allow reading organizations during sign-up"
+  on organizations for select
+  using (true);
+
+create policy "Allow inserting organizations during sign-up"
+  on organizations for insert
+  with check (true);
+
 --== ORGANIZATION_MEMBERS ==--
 create policy "Admins can manage all organization members"
   on organization_members for all
@@ -700,16 +738,20 @@ create policy "Organization admins can manage their org members"
   on organization_members for all
   using (
     exists(
-      select 1 from organization_members om
-      where om.organization_id = organization_members.organization_id
-        and om.user_id = auth.uid()
-        and om.role = 'admin'
+      select 1 from profiles p
+      where p.id = auth.uid()
+      and p.role = 'admin'
+      and p.organization_id = organization_members.organization_id
     )
   );
 
 create policy "Users can read their organization members"
   on organization_members for select
   using (organization_id = auth.get_user_organization());
+
+create policy "Allow creating organization members during sign-up"
+  on organization_members for insert
+  with check (user_id = auth.uid());
 
 --== TEAMS ==--
 create policy "Admins can manage all teams"
@@ -728,6 +770,16 @@ create policy "Admins can manage all team members"
 create policy "Agents can read all team members"
   on team_members for select
   using (auth.is_admin_or_agent());
+
+create policy "Users can read team members assigned to their organization"
+  on team_members for select
+  using (
+    exists (
+      select 1 from team_organizations
+      where team_organizations.team_id = team_members.team_id
+      and team_organizations.organization_id = auth.get_user_organization()
+    )
+  );
 
 --== TICKETS ==--
 create policy "Admins can manage all tickets"
@@ -1020,5 +1072,9 @@ create policy "Admins can manage all team organizations"
 create policy "Agents can read all team organizations"
   on team_organizations for select
   using (auth.is_admin_or_agent());
+
+create policy "Users can read team organizations for their organization"
+  on team_organizations for select
+  using (organization_id = auth.get_user_organization());
 
 -- done!

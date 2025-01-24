@@ -48,27 +48,34 @@ export async function getTicketsAction(filters?: TicketFilters) {
       status,
       priority,
       created_at,
-      customer:profiles!tickets_customer_id_fkey(
-        id, 
+      organization:organizations!tickets_organization_id_fkey(
+        id,
+        name,
+        domain
+      ),
+      requester:customer_id(
+        id,
         full_name,
-        organization:organizations!profiles_organization_id_fkey(name)
+        email,
+        role
       ),
-      assigned_agent:profiles!tickets_assigned_to_fkey(
-        id, 
-        full_name
+      assigned_to:profiles!tickets_assigned_to_fkey(
+        id,
+        full_name,
+        email,
+        role
       ),
-      team:team_id(id, name),
-      organization_id,
-      ticket_tags(tag:tag_id(name))
+      ticket_tags(
+        tag:tag_id(name)
+      )
     `)
     .order('created_at', { ascending: false });
 
   // Apply role-based filters
   if (profile.role === 'customer') {
-    // Customers can only see tickets in their organization
+    // Customers can see tickets from their organization
     query = query.eq('organization_id', profile.organization_id);
   } else if (profile.role === 'agent') {
-    // Agents can see tickets assigned to them or their teams
     const { data: teamIds } = await supabase
       .from('team_members')
       .select('team_id')
@@ -132,26 +139,20 @@ export async function getTicketsAction(filters?: TicketFilters) {
     title: ticket.title,
     status: ticket.status,
     priority: ticket.priority,
-    created: new Date(ticket.created_at).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }),
+    created: ticket.created_at,
     tags: ticket.ticket_tags?.map((t: any) => t.tag?.name) || [],
     description: ticket.description,
-    organization: ticket.customer?.organization?.name || 'No Organization',
-    requester: {
-      id: ticket.customer?.id,
-      name: ticket.customer?.full_name || 'Unknown Customer',
-      email: '' // We'll need to handle emails differently
-    },
-    assignedTo: ticket.assigned_agent ? {
-      id: ticket.assigned_agent.id,
-      name: ticket.assigned_agent.full_name,
-      email: '' // We'll need to handle emails differently
-    } : undefined
+    organization: ticket.organization?.name || 'No Organization',
+    requester: ticket.requester ? {
+      id: ticket.requester.id,
+      name: ticket.requester.full_name,
+      email: ticket.requester.email
+    } : null,
+    assignedTo: ticket.assigned_to ? {
+      id: ticket.assigned_to.id,
+      name: ticket.assigned_to.full_name,
+      email: ticket.assigned_to.email
+    } : null
   }));
 
   return { tickets: transformedTickets };

@@ -7,8 +7,26 @@ import { ProfileTab } from "@/components/settings/profile-tab";
 import { NotificationsTab } from "@/components/settings/notifications-tab";
 import { TeamTab } from "@/components/settings/team-tab";
 import { AdminTab } from "@/components/settings/admin-tab";
+import { useEffect, useState } from "react";
+import { getProfileAction } from "@/app/actions/profile";
 
 export default function SettingsPage() {
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadProfile() {
+      const { profile: userProfile } = await getProfileAction();
+      setProfile(userProfile);
+      setLoading(false);
+    }
+    loadProfile();
+  }, []);
+
+  if (loading) {
+    return <div className="p-6">Loading...</div>;
+  }
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-6">Settings</h1>
@@ -23,9 +41,11 @@ export default function SettingsPage() {
           <TabsTrigger value="team" className="flex items-center gap-2">
             <Users className="w-4 h-4" /> Team
           </TabsTrigger>
-          <TabsTrigger value="admin" className="flex items-center gap-2">
-            <Shield className="w-4 h-4" /> Admin
-          </TabsTrigger>
+          {profile?.role === 'admin' && (
+            <TabsTrigger value="admin" className="flex items-center gap-2">
+              <Shield className="w-4 h-4" /> Admin
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile">
@@ -37,9 +57,11 @@ export default function SettingsPage() {
         <TabsContent value="team">
           <TeamTab />
         </TabsContent>
-        <TabsContent value="admin">
-          <AdminTab />
-        </TabsContent>
+        {profile?.role === 'admin' && (
+          <TabsContent value="admin">
+            <AdminTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

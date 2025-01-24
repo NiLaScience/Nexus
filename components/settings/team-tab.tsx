@@ -9,19 +9,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getTeamMembersAction } from "@/app/actions/team.server";
-import { updateUserActiveStatusAction } from "@/app/actions/profile";
+import { updateUserActiveStatusAction, getProfileAction } from "@/app/actions/profile";
 import { toast } from "sonner";
 
 export function TeamTab() {
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<any>(null);
 
   async function fetchMembers() {
     try {
       const { members: teamMembers, error } = await getTeamMembersAction();
       if (error) throw error;
       setMembers(teamMembers || []);
+
+      // Get current user's profile
+      const { profile: userProfile } = await getProfileAction();
+      setProfile(userProfile);
     } catch (err) {
       setError((err as Error).message);
       toast.error("Failed to load team members");
@@ -81,7 +86,15 @@ export function TeamTab() {
   return (
     <div className="bg-card p-6 rounded-lg shadow">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg font-medium">Team Members</h2>
+        <div>
+          <h2 className="text-lg font-medium">Organization Members</h2>
+          {members.length > 0 && members[0].organization && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Organization: {members[0].organization.name}
+              {members[0].organization.domain && ` (${members[0].organization.domain})`}
+            </p>
+          )}
+        </div>
       </div>
       <div className="space-y-4">
         {members.map((member) => (
@@ -96,19 +109,21 @@ export function TeamTab() {
                 {member.role}
               </span>
             </div>
-            <Select 
-              defaultValue={member.is_active ? 'active' : 'inactive'}
-              onValueChange={(value) => handleStatusChange(member.id, value)}
-              disabled={loading}
-            >
-              <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
+            {member.is_active !== undefined && (
+              <Select 
+                defaultValue={member.is_active ? 'active' : 'inactive'}
+                onValueChange={(value) => handleStatusChange(member.id, value)}
+                disabled={loading || member.id === profile?.id}
+              >
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
         ))}
       </div>

@@ -54,7 +54,12 @@ export async function getTeamMembersAction() {
           full_name,
           email,
           role,
-          is_active
+          is_active,
+          organization:organizations!profiles_organization_id_fkey(
+            id,
+            name,
+            domain
+          )
         `)
         .eq('organization_id', profile.organization_id)
         .order('full_name');
@@ -111,6 +116,24 @@ export async function getTeamMembersAction() {
         ).values());
 
         return { members: uniqueMembers, error: null };
+      }
+
+      // If agent is not part of any team, show organization members
+      if (profile.role === 'agent') {
+        const { data: orgMembers, error: orgError } = await supabase
+          .from('profiles')
+          .select(`
+            id,
+            full_name,
+            email,
+            role,
+            is_active
+          `)
+          .eq('organization_id', profile.organization_id)
+          .order('full_name');
+
+        if (orgError) throw orgError;
+        return { members: orgMembers, error: null };
       }
 
       // If admin is not part of any team, show all users
