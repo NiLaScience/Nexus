@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Save, Trash } from 'lucide-react'
 import { getTemplate, updateTemplate, deleteTemplate } from '@/app/actions/response-templates'
+import { getTeamsAction } from '@/app/actions/teams.server'
 import dynamic from 'next/dynamic'
 import {
   AlertDialog,
@@ -66,12 +67,11 @@ function EditTemplateClient({ id }: { id: string }) {
   useEffect(() => {
     async function loadTeams() {
       try {
-        const response = await fetch('/api/teams')
-        const data = await response.json()
-        if (data.error) {
-          setError(data.error)
+        const { teams, error } = await getTeamsAction()
+        if (error) {
+          setError(error)
         } else {
-          setTeams(data.teams || [])
+          setTeams(teams || [])
         }
       } catch (err) {
         setError('Failed to load teams')

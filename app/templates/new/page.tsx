@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Save } from 'lucide-react'
 import { createTemplate } from '@/app/actions/response-templates'
+import { getTeamsAction } from '@/app/actions/teams.server'
 import dynamic from 'next/dynamic'
 import {
   Select,
@@ -41,14 +42,13 @@ export default function NewTemplatePage() {
   useEffect(() => {
     async function loadTeams() {
       try {
-        const response = await fetch('/api/teams')
-        const data = await response.json()
-        if (data.error) {
-          setError(data.error)
+        const { teams, error } = await getTeamsAction()
+        if (error) {
+          setError(error)
         } else {
-          setTeams(data.teams || [])
-          if (data.teams?.length === 1) {
-            setTeamId(data.teams[0].id)
+          setTeams(teams || [])
+          if (teams?.length === 1) {
+            setTeamId(teams[0].id)
           }
         }
       } catch (err) {
