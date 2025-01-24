@@ -188,7 +188,7 @@ export async function signUpAction(formData: FormData) {
         },
         {
           onConflict: 'domain',
-          ignoreDuplicates: false,
+          ignoreDuplicates: true,
         }
       )
       .select('id')
