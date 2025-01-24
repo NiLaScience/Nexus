@@ -6,7 +6,7 @@ import { TimePeriodSelector } from "@/components/analytics/time-period-selector"
 import { TicketTrendChart } from "@/components/analytics/ticket-trend-chart";
 import { StatusDistributionChart } from "@/components/analytics/status-distribution-chart";
 import { getAnalyticsDataAction } from "@/app/actions/analytics.server";
-import { createClient } from "@/utils/supabase/client";
+import { getTeamsAction, getOrganizationsAction } from "@/app/actions/teams.server";
 import {
   Select,
   SelectContent,
@@ -47,27 +47,22 @@ export function AnalyticsClient({ initialData }: AnalyticsClientProps) {
   const [selectedOrg, setSelectedOrg] = useState<string>("all");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(false);
-  const supabase = createClient();
 
   useEffect(() => {
     async function loadFilters() {
       // Load organizations
-      const { data: orgsData } = await supabase
-        .from('organizations')
-        .select('id, name')
-        .order('name');
-      
-      if (orgsData) {
+      const { organizations: orgsData, error: orgsError } = await getOrganizationsAction();
+      if (orgsError) {
+        console.error('Error loading organizations:', orgsError);
+      } else if (orgsData) {
         setOrganizations(orgsData);
       }
 
       // Load teams
-      const { data: teamsData } = await supabase
-        .from('teams')
-        .select('id, name')
-        .order('name');
-      
-      if (teamsData) {
+      const { teams: teamsData, error: teamsError } = await getTeamsAction();
+      if (teamsError) {
+        console.error('Error loading teams:', teamsError);
+      } else if (teamsData) {
         setTeams(teamsData);
       }
     }

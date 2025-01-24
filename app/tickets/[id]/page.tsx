@@ -112,6 +112,7 @@ export default async function TicketPage({ params }: PageProps) {
             ticketId={id}
             requester={ticket.customer}
             assignedTo={ticket.assignee}
+            team={ticket.team}
             customFields={ticket.custom_fields}
           />
           <TicketTimeline events={eventsResult.events || []} />

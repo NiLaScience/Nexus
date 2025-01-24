@@ -30,42 +30,7 @@ export type AddMessageParams = {
   isInternal?: boolean;
 };
 
-export async function getTicketMessagesAction(ticketId: string) {
-  const supabase = await createClient();
-
-  try {
-    const { data: messages, error } = await supabase
-      .from('ticket_messages')
-      .select(`
-        id,
-        content,
-        created_at,
-        is_internal,
-        source,
-        author:author_id(id, full_name, role),
-        attachments:message_attachments(
-          id,
-          name,
-          size,
-          mime_type,
-          storage_path,
-          created_at
-        )
-      `)
-      .eq('ticket_id', ticketId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching messages:', error);
-      return { error: 'Failed to fetch messages' };
-    }
-
-    return { messages };
-  } catch (error) {
-    console.error('Error in getTicketMessagesAction:', error);
-    return { error: 'Failed to fetch messages' };
-  }
-}
+export type { TicketMessage };
 
 export async function addMessageAction({ ticketId, content, isInternal = false }: AddMessageParams) {
   const supabase = await createClient();

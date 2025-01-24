@@ -483,7 +483,10 @@ begin
   perform create_ticket_event(
     new.ticket_id,
     new.author_id,
-    case when new.is_internal then 'internal_note_added' else 'message_added' end,
+    case 
+      when new.is_internal then 'internal_note_added' 
+      else 'message_added' 
+    end,
     null,
     new.id::text
   );

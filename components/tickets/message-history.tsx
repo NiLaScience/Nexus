@@ -2,7 +2,7 @@
 
 import { MessageCircle, Paperclip, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -15,7 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { type TicketMessage } from "@/app/actions/tickets/messages";
-import { addMessageAction } from "@/app/actions/tickets/messages.server";
+import { addMessageAction, getTicketMessagesAction } from "@/app/actions/tickets/messages.server";
 import { useToast } from "@/components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { uploadAttachmentAction, getAttachmentUrlAction } from "@/app/actions/tickets/attachments";
@@ -73,6 +73,74 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
   useEffect(() => {
     console.log('MessageHistory mounted with messages:', initialMessages);
   }, [initialMessages]);
+
+  // Load messages with attachments
+  const loadMessages = useCallback(async () => {
+    try {
+      const { messages, error } = await getTicketMessagesAction(ticketId);
+      if (error) {
+        toast({
+          title: "Error",
+          description: error,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (messages) {
+        setMessages(messages as TicketMessage[]);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  }, [ticketId, toast]);
+
+  useEffect(() => {
+    // Initial load
+    loadMessages();
+
+    let reloadTimeout: NodeJS.Timeout;
+
+    // Set up real-time subscription for both messages and attachments
+    const channel = supabase
+      .channel('messages-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ticket_messages',
+          filter: `ticket_id=eq.${ticketId} and is_internal=eq.false`
+        },
+        () => {
+          // Clear any existing timeout
+          if (reloadTimeout) clearTimeout(reloadTimeout);
+          // Set a new timeout to reload after a delay
+          reloadTimeout = setTimeout(loadMessages, 500);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_attachments',
+          filter: `message_id=in.(select id from ticket_messages where ticket_id=${ticketId} and is_internal=false)`
+        },
+        () => {
+          // Clear any existing timeout
+          if (reloadTimeout) clearTimeout(reloadTimeout);
+          // Set a new timeout to reload after a delay
+          reloadTimeout = setTimeout(loadMessages, 500);
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription and timeout
+    return () => {
+      if (reloadTimeout) clearTimeout(reloadTimeout);
+      supabase.removeChannel(channel);
+    };
+  }, [ticketId, supabase, loadMessages]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {

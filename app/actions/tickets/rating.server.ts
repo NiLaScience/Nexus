@@ -65,6 +65,37 @@ export async function getTicketRatingAction(ticketId: string) {
   try {
     const supabase = await createClient();
 
+    // Get the current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error("Not authenticated");
+
+    // Get the ticket to check if user has access
+    const { data: ticket, error: ticketError } = await supabase
+      .from("tickets")
+      .select("customer_id")
+      .eq("id", ticketId)
+      .single();
+
+    if (ticketError) throw ticketError;
+    if (!ticket) throw new Error("Ticket not found");
+
+    // Get user's role
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError) throw profileError;
+    if (!profile) throw new Error("Profile not found");
+
+    // Check if user has access (is customer or admin)
+    const hasAccess = user.id === ticket.customer_id || profile.role === 'admin';
+    if (!hasAccess) {
+      throw new Error("You don't have permission to view this rating");
+    }
+
     const { data: rating, error } = await supabase
       .from("ticket_ratings")
       .select(`

@@ -18,14 +18,20 @@ interface UserProfile {
   role: string;
 }
 
+interface Team {
+  id: string;
+  name: string;
+}
+
 interface TicketDetailsProps {
   ticketId: string;
   requester?: UserProfile | null;
   assignedTo?: UserProfile | null;
+  team?: Team | null;
   customFields?: Record<string, any>;
 }
 
-export function TicketDetails({ ticketId, requester, assignedTo, customFields = {} }: TicketDetailsProps) {
+export function TicketDetails({ ticketId, requester, assignedTo, team, customFields = {} }: TicketDetailsProps) {
   const [fieldConfigs, setFieldConfigs] = useState<CustomField[]>([]);
 
   useEffect(() => {
@@ -102,6 +108,17 @@ export function TicketDetails({ ticketId, requester, assignedTo, customFields = 
             </div>
           ) : (
             <div className="text-sm text-muted-foreground mt-1">Not assigned</div>
+          )}
+        </div>
+
+        <div>
+          <div className="text-sm font-medium text-muted-foreground">Assigned Team</div>
+          {team ? (
+            <div className="mt-1">
+              <div>{team.name}</div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground mt-1">No team assigned</div>
           )}
         </div>
 

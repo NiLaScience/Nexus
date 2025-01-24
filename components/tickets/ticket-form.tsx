@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, X, Loader2 } from "lucide-react";
+import { PlusCircle, X, Loader2, Paperclip } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -31,6 +31,8 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadWorkspaceSettings();
@@ -85,6 +87,12 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
     }));
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setSelectedFiles(Array.from(e.target.files));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -95,6 +103,11 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
       formData.append('priority', priority);
       formData.append('status', 'open'); // Always set status to 'open' for new tickets
       formData.append('custom_fields', JSON.stringify(customFieldValues));
+      
+      // Add files to formData
+      selectedFiles.forEach(file => {
+        formData.append('files', file);
+      });
 
       await onSubmit(formData);
       router.push('/tickets');
@@ -242,7 +255,6 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
             <Select
               value={tagInput}
               onValueChange={(value) => {
-                setTagInput(value);
                 if (value && !tags.includes(value)) {
                   setTags([...tags, value]);
                   setTagInput("");
@@ -279,6 +291,55 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
             <Button type="button" variant="outline" onClick={handleAddTag}>
               <PlusCircle className="w-4 h-4" />
             </Button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">Attachments</label>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                multiple
+                onChange={handleFileSelect}
+              />
+              <Button 
+                type="button"
+                variant="outline" 
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Paperclip className="w-4 h-4 mr-2" /> Attach Files
+              </Button>
+              {selectedFiles.length > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  {selectedFiles.length} file(s) selected
+                </span>
+              )}
+            </div>
+            {selectedFiles.length > 0 && (
+              <div className="space-y-2">
+                {selectedFiles.map((file, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 rounded bg-muted/50">
+                    <Paperclip className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm flex-1">{file.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedFiles(selectedFiles.filter((_, i) => i !== index));
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = '';
+                        }
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

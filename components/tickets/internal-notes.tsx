@@ -2,7 +2,7 @@
 
 import { AlertCircle, Paperclip, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { addInternalNoteAction } from "@/app/actions/tickets/messages.server";
+import { addInternalNoteAction, getInternalNotesAction } from "@/app/actions/tickets/messages.server";
 import type { TicketMessage } from "@/app/actions/tickets/messages";
 import { formatDistanceToNow } from "date-fns";
 import { uploadAttachmentAction, getAttachmentUrlAction } from "@/app/actions/tickets/attachments";
@@ -151,6 +151,74 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
       });
     }
   };
+
+  // Load notes with attachments
+  const loadNotes = useCallback(async () => {
+    try {
+      const { messages: updatedNotes, error } = await getInternalNotesAction(ticketId);
+      if (error) {
+        toast({
+          title: "Error",
+          description: error,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (updatedNotes) {
+        setNotes(updatedNotes);
+      }
+    } catch (error) {
+      console.error('Error loading notes:', error);
+    }
+  }, [ticketId, toast]);
+
+  useEffect(() => {
+    // Initial load
+    loadNotes();
+
+    let reloadTimeout: NodeJS.Timeout;
+
+    // Set up real-time subscription for both messages and attachments
+    const channel = supabase
+      .channel('internal-notes-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ticket_messages',
+          filter: `ticket_id=eq.${ticketId} and is_internal=eq.true`
+        },
+        () => {
+          // Clear any existing timeout
+          if (reloadTimeout) clearTimeout(reloadTimeout);
+          // Set a new timeout to reload after a delay
+          reloadTimeout = setTimeout(loadNotes, 500);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_attachments',
+          filter: `message_id=in.(select id from ticket_messages where ticket_id=${ticketId} and is_internal=true)`
+        },
+        () => {
+          // Clear any existing timeout
+          if (reloadTimeout) clearTimeout(reloadTimeout);
+          // Set a new timeout to reload after a delay
+          reloadTimeout = setTimeout(loadNotes, 500);
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription and timeout
+    return () => {
+      if (reloadTimeout) clearTimeout(reloadTimeout);
+      supabase.removeChannel(channel);
+    };
+  }, [ticketId, supabase, loadNotes]);
 
   return (
     <Card>

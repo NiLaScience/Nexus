@@ -12,7 +12,8 @@ export async function getTicketMessagesAction(ticketId: string) {
     // Debug: First check all messages in the table
     const { data: allMessages, error: debugError } = await supabase
       .from("ticket_messages")
-      .select("*");
+      .select("*")
+      .eq("ticket_id", ticketId);
     
     console.log('All messages in database:', allMessages?.length || 0);
     if (debugError) console.error('Debug query error:', debugError);

@@ -146,6 +146,33 @@ begin
           );
         end if;
       end;
+
+    when 'internal_note_added' then
+      -- Notify team members about internal notes
+      if v_ticket.team_id is not null then
+        select array_agg(user_id) into v_team_members
+        from team_members
+        where team_id = v_ticket.team_id;
+        
+        if v_team_members is not null then
+          foreach v_assigned_user in array v_team_members loop
+            -- Don't notify the author of their own note
+            if v_assigned_user != new.actor_id then
+              perform create_notification(
+                v_assigned_user,
+                v_ticket.id,
+                'internal_note_added',
+                'New internal note',
+                format('New internal note added to ticket "%s"', v_ticket.title)
+              );
+            end if;
+          end loop;
+        end if;
+      end if;
+
+    else
+      -- For any other event type, just return new
+      return new;
   end case;
 
   return new;
