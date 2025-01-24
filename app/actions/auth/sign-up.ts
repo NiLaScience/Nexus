@@ -177,32 +177,22 @@ export async function signUpAction(formData: FormData) {
       finalOrganizationId = newOrg.id;
     }
   } else {
-    // For admins and agents, use the default organization
-    const { data: newOrg, error: orgError } = await serviceClient
+    // For admins and agents, get the default organization
+    const { data: defaultOrg, error: orgError } = await serviceClient
       .from('organizations')
-      .upsert(
-        {
-          name: 'Nexus Support',
-          domain: 'nexus.com',
-          description: 'Default organization for support staff',
-        },
-        {
-          onConflict: 'domain',
-          ignoreDuplicates: true,
-        }
-      )
       .select('id')
+      .eq('domain', 'nexus.com')
       .single();
 
-    if (orgError) {
-      console.error("Default organization creation error:", orgError);
+    if (orgError || !defaultOrg) {
+      console.error("Default organization fetch error:", orgError);
       return encodedRedirect(
         "error",
         "/sign-up",
-        "Failed to create default organization",
+        "Failed to get default organization",
       );
     }
-    finalOrganizationId = newOrg.id;
+    finalOrganizationId = defaultOrg.id;
   }
 
   // Create the profile - organization_id now required for all roles
