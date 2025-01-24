@@ -1,8 +1,9 @@
 'use server';
 
 import { encodedRedirect } from "@/utils/utils";
-import { createClient, createServiceClient } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Sign up a new user with the provided form data
@@ -41,8 +42,35 @@ export async function signUpAction(formData: FormData) {
 
   // Create regular client for auth and service client for database operations
   const supabase = await createClient();
-  const serviceClient = createServiceClient();
+  
+  // Debug service client creation
+  console.log("Verifying SUPABASE_SERVICE_ROLE_KEY in Vercel Function:");
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (serviceRoleKey) {
+    console.log("- Key length:", serviceRoleKey.length);
+    console.log("- First 10 chars:", serviceRoleKey.substring(0, 10));
+  } else {
+    console.log("- Key is undefined");
+  }
+  
+  if (!supabaseUrl) {
+    console.error("NEXT_PUBLIC_SUPABASE_URL is undefined");
+    return encodedRedirect(
+      "error",
+      "/sign-up",
+      "Server configuration error",
+    );
+  }
 
+  const serviceClient = createSupabaseClient(
+    supabaseUrl,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  // Verify service client initialization
+  console.log("Service client created with URL:", supabaseUrl);
+  
   // Sign up the user with regular client
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
@@ -69,6 +97,15 @@ export async function signUpAction(formData: FormData) {
   }
 
   // Create the profile
+  console.log("Attempting to create profile with:", {
+    id: authData.user.id,
+    role,
+    full_name: fullName,
+    email,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
+  
   const { error: profileError } = await serviceClient.from("profiles").insert({
     id: authData.user.id,
     role: role,
@@ -80,6 +117,12 @@ export async function signUpAction(formData: FormData) {
 
   if (profileError) {
     console.error("Profile creation error:", profileError);
+    // Log additional details about the service client
+    console.log("Service client config:", {
+      url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      keyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length
+    });
     return encodedRedirect(
       "error",
       "/sign-up",

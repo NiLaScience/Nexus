@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 export const createClient = async () => {
   const cookieStore = await cookies();
@@ -26,18 +25,5 @@ export const createClient = async () => {
         },
       },
     },
-  );
-};
-
-export const createServiceClient = () => {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    }
   );
 };
