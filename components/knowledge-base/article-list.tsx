@@ -1,42 +1,34 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ChevronRight } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
 
-const MOCK_ARTICLES = [
-  {
-    id: 1,
-    title: "Getting Started with Support Portal",
-    category: "General",
-    excerpt:
-      "Learn how to navigate and use the main features of our support portal.",
-    views: 1234,
-  },
-  {
-    id: 2,
-    title: "How to Create and Track Tickets",
-    category: "Tickets",
-    excerpt:
-      "Step-by-step guide to creating and managing support tickets effectively.",
-    views: 856,
-  },
-  {
-    id: 3,
-    title: "Common Login Issues and Solutions",
-    category: "Troubleshooting",
-    excerpt: "Solutions to frequently encountered login and access problems.",
-    views: 2103,
-  },
-] as const;
+interface Article {
+  id: string;
+  title: string;
+  content: string;
+  view_count: number;
+  created_at: string;
+  updated_at: string;
+  categories: {
+    id: string;
+    name: string;
+  }[];
+}
 
-export function ArticleList() {
+interface ArticleListProps {
+  articles: Article[];
+}
+
+export function ArticleList({ articles }: ArticleListProps) {
   return (
     <div className="space-y-4">
-      {MOCK_ARTICLES.map((article) => (
+      {articles.map((article) => (
         <div key={article.id} className="bg-card p-4 rounded-lg shadow">
           <div className="flex justify-between items-start mb-2">
             <div>
               <span className="text-sm text-primary font-medium">
-                {article.category}
+                {article.categories[0]?.name}
               </span>
               <h3 className="font-medium">
                 <Link
@@ -51,9 +43,15 @@ export function ArticleList() {
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-          <p className="text-muted-foreground text-sm mb-2">{article.excerpt}</p>
+          <div className="prose prose-sm prose-slate dark:prose-invert max-w-none line-clamp-3">
+            <ReactMarkdown>
+              {article.content.length > 200
+                ? `${article.content.slice(0, 200)}...`
+                : article.content}
+            </ReactMarkdown>
+          </div>
           <div className="text-xs text-muted-foreground">
-            {article.views} views
+            {article.view_count} views
           </div>
         </div>
       ))}

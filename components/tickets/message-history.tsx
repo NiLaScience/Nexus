@@ -2,7 +2,6 @@
 
 import { MessageCircle, Paperclip, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect, useRef } from "react";
 import {
   Card,
@@ -24,6 +23,13 @@ import { createClient } from "@/utils/supabase/client";
 import { listTemplates, type ResponseTemplate } from "@/app/actions/response-templates";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { incrementUsageCount } from "@/app/actions/response-templates";
+import ReactMarkdown from 'react-markdown';
+import dynamic from 'next/dynamic';
+
+const MDEditor = dynamic(
+  () => import('@uiw/react-md-editor').then((mod) => mod.default),
+  { ssr: false }
+);
 
 interface MessageHistoryProps {
   ticketId: string;
@@ -232,7 +238,9 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
                       {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
                     </span>
                   </div>
-                  <p className="text-muted-foreground mt-2">{message.content}</p>
+                  <div className="prose prose-sm dark:prose-invert mt-2">
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                  </div>
                   {message.attachments && message.attachments.length > 0 && (
                     <div className="mt-3 space-y-2">
                       {message.attachments.map((attachment) => (
@@ -259,12 +267,17 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
           )}
         </div>
         <div className="flex gap-2">
-          <Textarea
-            placeholder="Type your message..."
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            className="min-h-[100px]"
-          />
+          <div className="flex-1">
+            <div data-color-mode="dark">
+              <MDEditor
+                value={messageText}
+                onChange={(value) => setMessageText(value || '')}
+                preview="edit"
+                height={200}
+                className="dark:bg-background"
+              />
+            </div>
+          </div>
           <div className="flex flex-col gap-2">
             <Popover>
               <PopoverTrigger asChild>

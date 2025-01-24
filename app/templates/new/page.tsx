@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Save } from 'lucide-react'
 import { createTemplate } from '@/app/actions/response-templates'
+import dynamic from 'next/dynamic'
 import {
   Select,
   SelectContent,
@@ -15,6 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+
+const MDEditor = dynamic(
+  () => import('@uiw/react-md-editor').then((mod) => mod.default),
+  { ssr: false }
+);
 
 interface Team {
   id: string
@@ -30,6 +35,7 @@ export default function NewTemplatePage() {
   const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [isLoadingTeams, setIsLoadingTeams] = useState(true)
+  const [showPreview, setShowPreview] = useState(false)
 
   // Load teams the user has access to
   useEffect(() => {
@@ -138,14 +144,15 @@ export default function NewTemplatePage() {
               <label htmlFor="content" className="text-sm font-medium">
                 Content
               </label>
-              <Textarea
-                id="content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Enter template content"
-                className="min-h-[200px]"
-                required
-              />
+              <div data-color-mode="dark">
+                <MDEditor
+                  value={content}
+                  onChange={(value) => setContent(value || '')}
+                  preview="edit"
+                  height={400}
+                  className="dark:bg-background"
+                />
+              </div>
             </div>
           </CardContent>
           <CardFooter className="flex justify-end">

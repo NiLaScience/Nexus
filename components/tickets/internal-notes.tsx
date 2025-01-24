@@ -1,8 +1,7 @@
 'use client';
 
-import { AlertCircle, Paperclip } from "lucide-react";
+import { AlertCircle, Paperclip, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useState, useRef } from "react";
 import {
   Card,
@@ -17,6 +16,13 @@ import { formatDistanceToNow } from "date-fns";
 import { uploadAttachmentAction, getAttachmentUrlAction } from "@/app/actions/tickets/attachments";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
+import ReactMarkdown from 'react-markdown';
+import dynamic from 'next/dynamic';
+
+const MDEditor = dynamic(
+  () => import('@uiw/react-md-editor').then((mod) => mod.default),
+  { ssr: false }
+);
 
 interface InternalNotesProps {
   ticketId: string;
@@ -150,15 +156,15 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <AlertCircle className="w-4 h-4" /> Internal Notes
+          <MessageSquare className="w-4 h-4" /> Internal Notes ({notes.length})
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4 mb-4 max-h-[400px] overflow-y-auto pr-4">
-          {notes.length === 0 ? (
+        <div className="space-y-6 mb-6 max-h-[400px] overflow-y-auto pr-4">
+          {notes?.length === 0 ? (
             <p className="text-muted-foreground text-center py-4">No internal notes yet</p>
           ) : (
-            notes.map((note, index) => (
+            notes?.map((note, index) => (
               <div key={note.id} className={`flex gap-4 ${index >= 3 ? "" : "pb-4 border-b border-border"}`}>
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                   {note.author?.full_name?.[0] ?? '?'}
@@ -173,7 +179,9 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
                       {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
                     </span>
                   </div>
-                  <p className="mt-1 text-muted-foreground">{note.content}</p>
+                  <div className="prose prose-sm dark:prose-invert mt-2">
+                    <ReactMarkdown>{note.content}</ReactMarkdown>
+                  </div>
                   {note.attachments && note.attachments.length > 0 && (
                     <div className="mt-3 space-y-2">
                       {note.attachments.map((attachment) => (
@@ -200,18 +208,15 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
           )}
         </div>
         <div className="space-y-4">
-          <Textarea
-            placeholder="Add an internal note..."
-            className="min-h-[100px]"
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleAddNote();
-              }
-            }}
-          />
+          <div data-color-mode="dark">
+            <MDEditor
+              value={noteText}
+              onChange={(value) => setNoteText(value || '')}
+              preview="edit"
+              height={200}
+              className="dark:bg-background"
+            />
+          </div>
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               <Input

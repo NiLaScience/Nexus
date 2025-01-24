@@ -14,24 +14,27 @@ This checklist provides a step-by-step guide for implementing new features into 
     - [ ]  Use Supabase RLS policies to secure backend data access.
 
 ### Knowledge Base Setup
-- [ ] **Create Database Tables:**
-    - [ ] Implement `articles` table: (`id`, `title`, `content`, `category_id`, `created_at`, `updated_at`)
-    - [ ] Implement `categories` table: (`id`, `name`)
-    - [ ] Establish a foreign key relationship between `articles` and `categories`.
-- [ ] **Implement API Endpoints/Server Actions:**
-    - [ ] `GET /api/articles`: Fetch articles (pagination, filtering).
-    - [ ] `GET /api/articles/:id`: Fetch a specific article.
-    - [ ] `POST /api/articles`: Create a new article (admin only).
-    - [ ] `PUT /api/articles/:id`: Update an article (admin only).
-    - [ ] `DELETE /api/articles/:id`: Delete an article (admin only).
-    - [ ] Ensure all API endpoints use proper RLS.
-- [ ] **Implement UI Components:**
-    - [ ] Create `components/knowledge-base/KnowledgeBase.tsx` (layout).
+- [x] **Create Database Tables:**
+    - [x] Implement `articles` table: (`id`, `title`, `content`, `category_id`, `created_at`, `updated_at`)
+    - [x] Implement `categories` table: (`id`, `name`)
+    - [x] Establish a foreign key relationship between `articles` and `categories`.
+- [x] **Implement API Endpoints/Server Actions:**
+    - [x] `GET /api/articles`: Fetch articles (pagination, filtering).
+    - [x] `GET /api/articles/:id`: Fetch a specific article.
+    - [x] `POST /api/articles`: Create a new article (admin only).
+    - [x] `PUT /api/articles/:id`: Update an article (admin only).
+    - [x] `DELETE /api/articles/:id`: Delete an article (admin only).
+    - [x] Ensure all API endpoints use proper RLS.
+- [x] **Implement UI Components:**
+    - [x] Create `components/knowledge-base/KnowledgeBase.tsx` (layout).
     - [ ] Create `components/knowledge-base/SearchHeader.tsx` (search input).
-    - [ ] Create `components/knowledge-base/CategoriesSidebar.tsx` (navigation).
-    - [ ] Create `components/knowledge-base/ArticleList.tsx` (lists articles).
-    - [ ] Create `app/knowledge-base/article/[id]/page.tsx` to display a single article.
-- [ ]  **Implement Admin Panel for Articles:** Allow admins to add, edit and delete articles from settings.
+    - [x] Create `components/knowledge-base/CategoriesSidebar.tsx` (navigation).
+    - [x] Create `components/knowledge-base/ArticleList.tsx` (lists articles).
+    - [x] Create `app/knowledge-base/article/[id]/page.tsx` to display a single article.
+- [x] **Implement Admin Panel for Articles:** Allow admins to add, edit and delete articles from settings.
+    - [x] Create new article button for admins
+    - [x] Implement article editor component
+    - [x] Add category management (create, edit, delete)
 - [ ] **Implement View Counts:** Update articles table and backend to track views, provide stats.
 
 ## Phase 2:  Notification and Email Integrations

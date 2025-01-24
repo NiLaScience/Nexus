@@ -8,6 +8,7 @@ import { Plus, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { listTemplates, type ResponseTemplate } from '@/app/actions/response-templates'
 import { useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 
 export default function TemplatesPage() {
   const router = useRouter()
@@ -72,9 +73,9 @@ export default function TemplatesPage() {
                 <CardTitle className="text-lg">{template.name}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-3">
-                  {template.content}
-                </p>
+                <div className="prose prose-sm dark:prose-invert line-clamp-3">
+                  <ReactMarkdown>{template.content}</ReactMarkdown>
+                </div>
               </CardContent>
               <CardFooter className="flex justify-between">
                 <Button
