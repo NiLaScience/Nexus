@@ -7,6 +7,7 @@ import Link from "next/link";
 import { BarChart2, BookOpen, Home, Inbox, Plus, Settings } from "lucide-react";
 import { Chatbot } from "@/components/chat/chatbot";
 import { Toaster } from "@/components/ui/toaster";
+import { NotificationsDropdown } from "@/components/ui/notifications-dropdown";
 import "./globals.css";
 import { createClient } from "@/utils/supabase/server";
 
@@ -102,6 +103,7 @@ export default async function RootLayout({
               <nav className="w-full flex justify-end border-b border-border h-16">
                 <div className="flex items-center gap-4 px-6">
                   {!hasEnvVars ? null : <HeaderAuth />}
+                  <NotificationsDropdown />
                   <ThemeSwitcher />
                 </div>
               </nav>

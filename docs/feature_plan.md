@@ -39,17 +39,17 @@ This checklist provides a step-by-step guide for implementing new features into 
 
 ## Phase 2:  Notification and Email Integrations
 
-### Notification System
-- [ ] **Create Database Table:**
-    - [ ] `notifications` table: (`id`, `user_id`, `ticket_id`, `message`, `created_at`, `read_at`).
-- [ ] **Implement Database Triggers:**
-    - [ ] Detect changes in `tickets` table (`status_changed`, `assigned`)
-    - [ ] Detect new inserts in `ticket_messages` table.
-    - [ ] Insert new rows in the `notifications` table with appropriate metadata (user, ticket, message).
-- [ ] **Create API Endpoint/Server Action:** Fetch unread notifications for a user, mark as read actions.
-- [ ] **Create UI Component:**
-    - [ ] Create `components/ui/NotificationsDropdown.tsx` component to fetch and display unread notifications.
-        - [ ] Implement logic to mark notifications as read.
+### Notification System ✅
+- [x] **Create Database Table:**
+    - [x] `notifications` table: (`id`, `user_id`, `ticket_id`, `message`, `created_at`, `read_at`).
+- [x] **Implement Database Triggers:**
+    - [x] Detect changes in `tickets` table (`status_changed`, `assigned`)
+    - [x] Detect new inserts in `ticket_messages` table.
+    - [x] Insert new rows in the `notifications` table with appropriate metadata (user, ticket, message).
+- [x] **Create API Endpoint/Server Action:** Fetch unread notifications for a user, mark as read actions.
+- [x] **Create UI Component:**
+    - [x] Create `components/ui/NotificationsDropdown.tsx` component to fetch and display unread notifications.
+        - [x] Implement logic to mark notifications as read.
 
 ### Email Integration
 - [ ] **Implement Supabase Functions:**

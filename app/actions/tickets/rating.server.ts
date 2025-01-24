@@ -76,9 +76,9 @@ export async function getTicketRatingAction(ticketId: string) {
         created_by
       `)
       .eq("ticket_id", ticketId)
-      .single();
+      .maybeSingle();
 
-    if (error) throw error;
+    if (error && error.code !== 'PGRST116') throw error;
 
     return { rating, error: null };
   } catch (error) {

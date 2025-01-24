@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { addTicketRatingAction, getTicketRatingAction } from "@/app/actions/tickets/rating.server";
 import { useEffect } from "react";
-import { createClient } from "@/utils/supabase/client";
 
 interface TicketRatingProps {
   ticketId: string;
@@ -24,33 +23,31 @@ export function TicketRating({ ticketId, status, customerId }: TicketRatingProps
   const [isLoading, setIsLoading] = useState(true);
   const [canRate, setCanRate] = useState(false);
   const { toast } = useToast();
-  const supabase = createClient();
 
   useEffect(() => {
-    async function checkAccess() {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get user's role
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      // User can rate if they are the customer or an admin
-      setCanRate(user.id === customerId || profile?.role === 'admin');
+    async function loadData() {
+      try {
+        // Get the rating
+        const { rating } = await getTicketRatingAction(ticketId);
+        setExistingRating(rating);
+        
+        // If there's a rating, the user can rate if they're the customer or an admin
+        // This logic is now handled server-side in the action
+        setCanRate(true);
+      } catch (error) {
+        console.error('Error loading rating:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load rating data",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
     }
 
-    async function loadRating() {
-      const { rating } = await getTicketRatingAction(ticketId);
-      setExistingRating(rating);
-      setIsLoading(false);
-    }
-
-    Promise.all([checkAccess(), loadRating()]);
-  }, [ticketId, customerId, supabase.auth]);
+    loadData();
+  }, [ticketId, customerId, toast]);
 
   if (isLoading) {
     return <div>Loading...</div>;
