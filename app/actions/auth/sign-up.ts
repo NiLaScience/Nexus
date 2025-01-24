@@ -1,9 +1,8 @@
 'use server';
 
 import { encodedRedirect } from "@/utils/utils";
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createServiceClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Sign up a new user with the provided form data
@@ -42,10 +41,7 @@ export async function signUpAction(formData: FormData) {
 
   // Create regular client for auth and service client for database operations
   const supabase = await createClient();
-  const serviceClient = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const serviceClient = createServiceClient();
 
   // Sign up the user with regular client
   const { data: authData, error: authError } = await supabase.auth.signUp({
