@@ -56,6 +56,13 @@ export async function signUpAction(formData: FormData) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      db: {
+        schema: 'public'
+      },
       cookies: {
         get(name: string) {
           return cookieStore.get(name)?.value;
@@ -171,36 +178,31 @@ export async function signUpAction(formData: FormData) {
     }
   } else {
     // For admins and agents, use the default organization
-    const { data: defaultOrg } = await serviceClient
+    const { data: newOrg, error: orgError } = await serviceClient
       .from('organizations')
-      .select('id')
-      .eq('domain', 'nexus.com')
-      .single();
-
-    if (defaultOrg) {
-      finalOrganizationId = defaultOrg.id;
-    } else {
-      // Create default organization if it doesn't exist
-      const { data: newOrg, error: orgError } = await serviceClient
-        .from('organizations')
-        .insert({
+      .upsert(
+        {
           name: 'Nexus Support',
           domain: 'nexus.com',
           description: 'Default organization for support staff',
-        })
-        .select('id')
-        .single();
+        },
+        {
+          onConflict: 'domain',
+          ignoreDuplicates: false,
+        }
+      )
+      .select('id')
+      .single();
 
-      if (orgError) {
-        console.error("Default organization creation error:", orgError);
-        return encodedRedirect(
-          "error",
-          "/sign-up",
-          "Failed to create default organization",
-        );
-      }
-      finalOrganizationId = newOrg.id;
+    if (orgError) {
+      console.error("Default organization creation error:", orgError);
+      return encodedRedirect(
+        "error",
+        "/sign-up",
+        "Failed to create default organization",
+      );
     }
+    finalOrganizationId = newOrg.id;
   }
 
   // Create the profile - organization_id now required for all roles
