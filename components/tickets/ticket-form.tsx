@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
-import type { CustomField } from "@/app/actions/workspace-settings";
+import type { CustomField } from "@/types/custom-fields";
 
 interface TicketFormProps {
   onSubmit: (formData: FormData) => Promise<any>;
@@ -25,7 +25,6 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
   const [priority, setPriority] = useState<string>("medium");
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
@@ -63,12 +62,6 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
 
   const removeTag = (tagToRemove: string) => {
     setTags(tags.filter((tag) => tag !== tagToRemove));
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFiles(Array.from(e.target.files));
-    }
   };
 
   const handleCustomFieldChange = (fieldName: string, value: any) => {
@@ -247,16 +240,6 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
               <PlusCircle className="w-4 h-4" />
             </Button>
           </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-2">Attachments</label>
-          <Input
-            type="file"
-            onChange={handleFileChange}
-            multiple
-            accept="image/*,.pdf,.doc,.docx"
-          />
         </div>
 
         <Button type="submit" disabled={isSubmitting} className="w-full">

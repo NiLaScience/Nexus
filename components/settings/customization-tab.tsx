@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { getWorkspaceSettings, updateTicketStatuses, updateTicketFields } from "@/app/actions/workspace-settings";
 import type { TicketStatus } from "@/types/workspace-settings";
-import type { CustomField } from "@/app/actions/workspace-settings";
+import type { CustomField } from "@/types/custom-fields";
 import { ChromePicker } from "react-color";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

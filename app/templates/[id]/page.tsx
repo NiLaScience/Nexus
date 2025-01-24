@@ -32,7 +32,20 @@ interface Team {
   name: string
 }
 
-export default function EditTemplatePage({ params }: { params: { id: string } }) {
+interface PageProps {
+  params: Promise<{ id: string }>
+}
+
+export default async function EditTemplatePage({ params }: PageProps) {
+  const resolvedParams = await params;
+  const id = resolvedParams.id;
+  
+  return (
+    <EditTemplateClient id={id} />
+  )
+}
+
+function EditTemplateClient({ id }: { id: string }) {
   const router = useRouter()
   const [name, setName] = useState('')
   const [content, setContent] = useState('')
@@ -66,7 +79,7 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
   useEffect(() => {
     async function loadTemplate() {
       try {
-        const result = await getTemplate(params.id)
+        const result = await getTemplate(id)
         if (result.error) {
           setError(result.error)
         } else {
@@ -81,7 +94,7 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
       }
     }
     loadTemplate()
-  }, [params.id])
+  }, [id])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -93,7 +106,7 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
     setIsSaving(true)
     try {
       const result = await updateTemplate({
-        id: params.id,
+        id,
         name,
         content,
         team_id: teamId
@@ -114,7 +127,7 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
   async function handleDelete() {
     setIsDeleting(true)
     try {
-      const result = await deleteTemplate(params.id)
+      const result = await deleteTemplate(id)
       if (result.error) {
         setError(result.error)
       } else {

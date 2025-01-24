@@ -116,11 +116,6 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
     return status ? status.color : '#808080';
   };
 
-  const getStatusClass = (statusName: string) => {
-    const color = getStatusColor(statusName);
-    return `text-[${color}]`;
-  };
-
   const handleStatusChange = async (newStatus: string) => {
     setPendingStatus(newStatus);
     setShowStatusDialog(true);

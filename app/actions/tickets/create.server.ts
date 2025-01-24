@@ -58,7 +58,7 @@ export async function createTicketAction(formData: FormData) {
   }
 
   // Get workspace settings for custom fields validation
-  const { data: settings, error: settingsError } = await serviceClient
+  const { error: settingsError } = await serviceClient
     .from('workspace_settings')
     .select('ticket_fields')
     .eq('workspace_id', DEFAULT_WORKSPACE_ID)
@@ -68,6 +68,8 @@ export async function createTicketAction(formData: FormData) {
     console.error('Settings error:', settingsError);
     throw new Error('Failed to load workspace settings');
   }
+
+  // TODO: Add custom fields validation using workspace settings
 
   // Extract form data
   const title = formData.get('title') as string;

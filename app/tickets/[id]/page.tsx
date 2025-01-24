@@ -12,8 +12,13 @@ import { getTicketEventsAction } from "@/app/actions/tickets/events.server";
 import { getRelatedTicketsAction } from "@/app/actions/tickets/related.server";
 import type { TicketTag } from "@/types/ticket";
 
-export default async function TicketPage({ params }: { params: { id: string } }) {
-  const id = await Promise.resolve(params.id);
+interface PageProps {
+  params: Promise<{ id: string }>
+}
+
+export default async function TicketPage({ params }: PageProps) {
+  const resolvedParams = await params;
+  const id = resolvedParams.id;
   const supabase = await createClient();
 
   // Fetch ticket with related profiles and tags

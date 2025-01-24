@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Ticket } from "@/types/ticket";
 import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
 import type { TicketStatus as WorkspaceTicketStatus } from "@/types/workspace-settings";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 interface TicketListProps {
   tickets: Ticket[];
@@ -36,7 +35,6 @@ export default function TicketList({ tickets }: TicketListProps) {
   };
 
   const getStatusClass = (statusName: string) => {
-    const status = workspaceStatuses.find(s => s.name === statusName);
     switch (statusName) {
       case 'open':
         return 'bg-red-500/10 text-red-500';

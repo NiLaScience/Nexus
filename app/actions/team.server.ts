@@ -9,6 +9,26 @@ export type TeamMember = {
   role: string;
 };
 
+interface TeamMemberUser {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  is_active: boolean;
+}
+
+interface TeamMemberWithTeam {
+  team: {
+    id: string;
+    name: string;
+  } | null;
+  user: TeamMemberUser | null;
+}
+
+interface TeamMemberWithUser {
+  user: TeamMemberUser | null;
+}
+
 export async function getTeamMembersAction() {
   try {
     const supabase = await createClient();
@@ -60,12 +80,12 @@ export async function getTeamMembersAction() {
             is_active
           )
         `)
-        .eq('user_id', user.id);
+        .eq('user_id', user.id) as { data: TeamMemberWithTeam[] | null, error: any };
 
       if (error) throw error;
 
       // Get all members from their teams
-      const teamIds = members?.map(m => m.team?.id) || [];
+      const teamIds = members?.map(m => m.team?.id).filter(Boolean) || [];
       if (teamIds.length > 0) {
         const { data: teamMembers, error: teamError } = await supabase
           .from('team_members')
@@ -78,15 +98,15 @@ export async function getTeamMembersAction() {
               is_active
             )
           `)
-          .in('team_id', teamIds);
+          .in('team_id', teamIds) as { data: TeamMemberWithUser[] | null, error: any };
 
         if (teamError) throw teamError;
 
         // Flatten and deduplicate members
         const uniqueMembers = Array.from(new Map(
-          teamMembers
+          (teamMembers || [])
             .map(m => m.user)
-            .filter(Boolean)
+            .filter((user): user is TeamMemberUser => user !== null)
             .map(user => [user.id, user])
         ).values());
 
