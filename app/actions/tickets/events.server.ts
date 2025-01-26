@@ -38,7 +38,7 @@ export async function getTicketEventsAction(ticketId: string) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
     // First get all agent IDs mentioned in the events
     const { data: events, error } = await supabase

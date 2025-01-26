@@ -1,11 +1,16 @@
 import { SupabaseService } from '@/services/supabase';
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import type { TicketMessage } from '@/app/actions/tickets/messages';
 
 export class RealtimeService {
-  static async subscribeToMessages(ticketId: string, callback: (payload: any) => void) {
-    const supabase = await SupabaseService.createClientWithCookies();
+  private static channels: Map<string, RealtimeChannel> = new Map();
+
+  static async subscribeToTicketMessages(ticketId: string, callback: (payload: RealtimePostgresChangesPayload<TicketMessage>) => void) {
+    const supabase = SupabaseService.createAnonymousClient();
+    const channelName = `ticket_messages_${ticketId}`;
     
-    return supabase
-      .channel('ticket_messages')
+    const channel = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -17,13 +22,17 @@ export class RealtimeService {
         callback
       )
       .subscribe();
+
+    this.channels.set(channelName, channel);
+    return channel;
   }
 
-  static async subscribeToTicketAttachments(ticketId: string, callback: (payload: any) => void) {
-    const supabase = await SupabaseService.createClientWithCookies();
+  static async subscribeToTicketAttachments(ticketId: string, callback: (payload: RealtimePostgresChangesPayload<any>) => void) {
+    const supabase = SupabaseService.createAnonymousClient();
+    const channelName = `message_attachments_${ticketId}`;
     
-    return supabase
-      .channel('message_attachments')
+    const channel = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -35,10 +44,28 @@ export class RealtimeService {
         callback
       )
       .subscribe();
+
+    this.channels.set(channelName, channel);
+    return channel;
   }
 
-  static async unsubscribeFromMessages(channel: any) {
-    const supabase = await SupabaseService.createClientWithCookies();
-    await supabase.removeChannel(channel);
+  static unsubscribeFromTicketMessages(ticketId: string) {
+    const channelName = `ticket_messages_${ticketId}`;
+    const channel = this.channels.get(channelName);
+    if (channel) {
+      const supabase = SupabaseService.createAnonymousClient();
+      supabase.removeChannel(channel);
+      this.channels.delete(channelName);
+    }
+  }
+
+  static unsubscribeFromTicketAttachments(ticketId: string) {
+    const channelName = `message_attachments_${ticketId}`;
+    const channel = this.channels.get(channelName);
+    if (channel) {
+      const supabase = SupabaseService.createAnonymousClient();
+      supabase.removeChannel(channel);
+      this.channels.delete(channelName);
+    }
   }
 } 

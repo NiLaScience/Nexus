@@ -10,11 +10,27 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 async function RecentActivityContent() {
-  const activities = await getRecentActivityAction();
+  const { activity, error } = await getRecentActivityAction();
+
+  if (error) {
+    return (
+      <div className="text-center text-destructive py-8">
+        {error}
+      </div>
+    );
+  }
+
+  if (!activity || activity.length === 0) {
+    return (
+      <div className="text-center text-muted-foreground py-8">
+        No recent activity
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {activities.map((activity, index) => (
+      {activity.map((activity, index) => (
         <Link
           key={index}
           href={`/tickets/${activity.ticketId}`}
@@ -42,11 +58,6 @@ async function RecentActivityContent() {
           </div>
         </Link>
       ))}
-      {activities.length === 0 && (
-        <div className="text-center text-muted-foreground py-8">
-          No recent activity
-        </div>
-      )}
     </div>
   );
 }

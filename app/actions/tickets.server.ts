@@ -16,7 +16,7 @@ export async function updateTicketAction(
   }
 ) {
   try {
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
     // Get the current user
     const { user, error: authError } = await AuthService.getCurrentUser();
@@ -116,7 +116,7 @@ export async function updateTicketAction(
 
 export async function getAgentsAction(): Promise<{ agents: TeamMember[]; error: string | null }> {
   try {
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
     const { data: agents, error } = await supabase
       .from('profiles')
       .select('id, full_name, email, role, is_active, organization_id')
@@ -146,7 +146,7 @@ export type TicketFilters = {
 
 export async function updateTicketTagsAction(ticketId: string, tags: string[]) {
   try {
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
     // First, delete existing tags
     const { error: deleteError } = await supabase
@@ -216,7 +216,7 @@ export async function updateTicketTagsAction(ticketId: string, tags: string[]) {
  */
 export async function getAvailableTagsAction() {
   try {
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
     const { data: tags, error } = await supabase
       .from('tags')
       .select('id, name')

@@ -28,7 +28,7 @@ export async function createTicketAction(formData: FormData) {
       }
 
       // Create service client for database operations
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = SupabaseService.createServiceClient();
 
       // Get workspace settings for custom fields validation
       const { error: settingsError } = await serviceClient

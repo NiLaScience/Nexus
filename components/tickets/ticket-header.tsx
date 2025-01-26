@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { UserPlus, ArrowLeft, X, PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import Link from "next/link";
 import {
@@ -31,10 +30,11 @@ import {
 import { getAgentsAction, updateTicketTagsAction } from "@/app/actions/tickets.server";
 import { assignTicketAction } from "@/app/actions/tickets/assign.server";
 import { useToast } from "@/components/ui/use-toast";
-import { AuthService } from "@/services/auth";
+import { AuthClientService } from "@/services/auth.client";
 import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
 import type { TicketStatus as WorkspaceTicketStatus } from "@/types/workspace-settings";
 import { updateTicketStatusAction, updateTicketPriorityAction } from "@/app/actions/tickets/update.server";
+import type { UpdateTicketStatusInput, UpdateTicketPriorityInput } from "@/app/actions/tickets/schemas";
 
 interface Agent {
   id: string;
@@ -55,216 +55,229 @@ interface TicketHeaderProps {
 export function TicketHeader({ ticketId, title, created, tags: initialTags, status, priority, assignedTo }: TicketHeaderProps) {
   const { toast } = useToast();
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showStatusDialog, setShowStatusDialog] = useState(false);
-  const [showPriorityDialog, setShowPriorityDialog] = useState(false);
-  const [showAssignDialog, setShowAssignDialog] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
-  const [pendingPriority, setPendingPriority] = useState<string | null>(null);
-  const [pendingAgent, setPendingAgent] = useState<{ id: string; name: string } | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [isPriorityDialogOpen, setIsPriorityDialogOpen] = useState(false);
+  const [newStatus, setNewStatus] = useState<string>(status);
+  const [newPriority, setNewPriority] = useState<"low" | "medium" | "high" | "urgent">(priority);
   const [workspaceStatuses, setWorkspaceStatuses] = useState<WorkspaceTicketStatus[]>([]);
   const [tags, setTags] = useState<string[]>(initialTags);
-  const [tagInput, setTagInput] = useState("");
-  const [isEditingTags, setIsEditingTags] = useState(false);
-  const [, setUserRole] = useState<string | null>(null);
+  const [newTag, setNewTag] = useState("");
 
   useEffect(() => {
     const initializeComponent = async () => {
       try {
-        // Get current user and check auth
-        const { user, error } = await AuthService.getCurrentUser();
-        if (error || !user?.profile) {
-          toast({
-            title: "Error",
-            description: "You must be logged in to perform this action",
-            variant: "destructive",
-          });
+        // Get current user role
+        const { user, error: authError } = await AuthClientService.getCurrentUser();
+        if (authError || !user?.profile) {
+          console.error('Error getting user:', authError);
           return;
         }
 
-        // Set user role
-        setUserRole(user.profile.role);
-
-        // Load agents if user is not a customer
-        if (user.profile.role !== 'customer') {
-          const { agents: agentList, error: agentsError } = await getAgentsAction();
-          if (agentsError) {
-            toast({
-              title: "Error",
-              description: "Failed to load agents",
-              variant: "destructive",
-            });
-          } else if (agentList) {
-            setAgents(agentList);
-          }
+        // Get workspace settings
+        const settings = await getWorkspaceSettings();
+        if (settings) {
+          setWorkspaceStatuses(settings.ticket_statuses);
         }
 
-        // Load workspace settings
-        const settings = await getWorkspaceSettings();
-        if (settings?.ticket_statuses) {
-          setWorkspaceStatuses(settings.ticket_statuses);
+        // Get agents if user is agent or admin
+        if (user.profile.role === 'agent' || user.profile.role === 'admin') {
+          const { agents: loadedAgents, error: agentsError } = await getAgentsAction();
+          if (agentsError) {
+            console.error('Error loading agents:', agentsError);
+            return;
+          }
+          setAgents(loadedAgents || []);
         }
       } catch (error) {
         console.error('Error initializing component:', error);
-        toast({
-          title: "Error",
-          description: "Failed to initialize ticket header",
-          variant: "destructive",
-        });
       }
     };
 
     initializeComponent();
-  }, [toast]);
+  }, []);
 
   const getStatusDisplay = (statusName: string) => {
     const status = workspaceStatuses.find(s => s.name === statusName);
-    return status ? status.display : statusName;
+    return status?.display || statusName;
   };
 
-
   const handleStatusChange = async (newStatus: string) => {
-    setPendingStatus(newStatus);
-    setShowStatusDialog(true);
+    setNewStatus(newStatus);
+    setIsStatusDialogOpen(true);
   };
 
   const confirmStatusChange = async () => {
-    if (!pendingStatus) return;
-    
-    setIsLoading(true);
-    const formData = new FormData();
-    formData.append('ticketId', ticketId);
-    formData.append('status', pendingStatus);
+    try {
+      const formData = new FormData();
+      formData.append('ticketId', ticketId);
+      formData.append('status', newStatus as UpdateTicketStatusInput['status']);
 
-    const result = await updateTicketStatusAction(formData);
-    setIsLoading(false);
-    setShowStatusDialog(false);
-    setPendingStatus(null);
+      const { error } = await updateTicketStatusAction(formData);
 
-    if ('error' in result) {
-      toast({
-        title: "Error",
-        description: result.error,
-        variant: "destructive",
-      });
-    } else {
+      if (error) {
+        toast({
+          title: "Error",
+          description: error,
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: "Success",
-        description: "Ticket status updated",
+        description: "Ticket status updated successfully",
       });
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update ticket status",
+        variant: "destructive",
+      });
+    } finally {
+      setIsStatusDialogOpen(false);
     }
   };
 
   const handlePriorityChange = async (newPriority: "low" | "medium" | "high" | "urgent") => {
-    setPendingPriority(newPriority);
-    setShowPriorityDialog(true);
+    setNewPriority(newPriority);
+    setIsPriorityDialogOpen(true);
   };
 
   const confirmPriorityChange = async () => {
-    if (!pendingPriority) return;
-    
-    setIsLoading(true);
-    const formData = new FormData();
-    formData.append('ticketId', ticketId);
-    formData.append('priority', pendingPriority);
+    try {
+      const formData = new FormData();
+      formData.append('ticketId', ticketId);
+      formData.append('priority', newPriority as UpdateTicketPriorityInput['priority']);
 
-    const result = await updateTicketPriorityAction(formData);
-    setIsLoading(false);
-    setShowPriorityDialog(false);
-    setPendingPriority(null);
+      const { error } = await updateTicketPriorityAction(formData);
 
-    if ('error' in result) {
-      toast({
-        title: "Error",
-        description: result.error,
-        variant: "destructive",
-      });
-    } else {
+      if (error) {
+        toast({
+          title: "Error",
+          description: error,
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: "Success",
-        description: "Ticket priority updated",
+        description: "Ticket priority updated successfully",
       });
+    } catch (error) {
+      console.error('Error updating priority:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update ticket priority",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPriorityDialogOpen(false);
     }
   };
 
   const handleAssignment = async (agentId: string) => {
-    // Skip if no agent ID provided
-    if (!agentId || agentId.trim() === '') return;
-
-    const agent = agents.find(a => a.id === agentId);
-    if (!agent) return;
-
-    setPendingAgent({ id: agentId, name: agent.full_name || 'Unnamed' });
-    setShowAssignDialog(true);
+    setSelectedAgent(agentId);
+    setIsAssignDialogOpen(true);
   };
 
   const confirmAssignment = async () => {
-    if (!pendingAgent) return;
+    try {
+      const formData = new FormData();
+      formData.append('ticketId', ticketId);
+      formData.append('assignedTo', selectedAgent || '');
+      formData.append('teamId', '');
 
-    setIsLoading(true);
-    const formData = new FormData();
-    formData.append('ticketId', ticketId);
-    formData.append('assignedTo', pendingAgent.id);
-    formData.append('teamId', ''); // We'll add team assignment later
+      const { error } = await assignTicketAction(formData);
 
-    const result = await assignTicketAction(formData);
-    setIsLoading(false);
-    setShowAssignDialog(false);
-    setPendingAgent(null);
+      if (error) {
+        toast({
+          title: "Error",
+          description: error,
+          variant: "destructive",
+        });
+        return;
+      }
 
-    if ('error' in result) {
-      toast({
-        title: "Error",
-        description: result.error,
-        variant: "destructive",
-      });
-    } else {
       toast({
         title: "Success",
         description: "Ticket assigned successfully",
       });
+    } catch (error) {
+      console.error('Error assigning ticket:', error);
+      toast({
+        title: "Error",
+        description: "Failed to assign ticket",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAssignDialogOpen(false);
     }
   };
 
   const handleAddTag = async () => {
-    if (tagInput && !tags.includes(tagInput)) {
-      const newTags = [...tags, tagInput];
-      setIsLoading(true);
-      const result = await updateTicketTagsAction(ticketId, newTags);
-      setIsLoading(false);
+    if (!newTag.trim()) return;
 
-      if (result.error) {
+    try {
+      const updatedTags = [...tags, newTag.trim()];
+      const { error } = await updateTicketTagsAction(ticketId, updatedTags);
+
+      if (error) {
         toast({
           title: "Error",
-          description: result.error,
+          description: error,
           variant: "destructive",
         });
-      } else {
-        setTags(newTags);
-        setTagInput("");
-        setIsEditingTags(false);
+        return;
       }
+
+      setTags(updatedTags);
+      setNewTag("");
+      toast({
+        title: "Success",
+        description: "Tag added successfully",
+      });
+    } catch (error) {
+      console.error('Error adding tag:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add tag",
+        variant: "destructive",
+      });
     }
   };
 
   const handleRemoveTag = async (tagToRemove: string) => {
-    const newTags = tags.filter(tag => tag !== tagToRemove);
-    setIsLoading(true);
-    const result = await updateTicketTagsAction(ticketId, newTags);
-    setIsLoading(false);
+    try {
+      const updatedTags = tags.filter(tag => tag !== tagToRemove);
+      const { error } = await updateTicketTagsAction(ticketId, updatedTags);
 
-    if (result.error) {
+      if (error) {
+        toast({
+          title: "Error",
+          description: error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setTags(updatedTags);
+      toast({
+        title: "Success",
+        description: "Tag removed successfully",
+      });
+    } catch (error) {
+      console.error('Error removing tag:', error);
       toast({
         title: "Error",
-        description: result.error,
+        description: "Failed to remove tag",
         variant: "destructive",
       });
-    } else {
-      setTags(newTags);
     }
   };
-
-
 
   return (
     <div className="flex flex-col gap-4 p-4 border-b">
@@ -352,100 +365,61 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
               </button>
             </div>
           ))}
-          {isEditingTags ? (
-            <div className="flex items-center gap-2">
-              <Input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                className="w-32 h-8"
-                placeholder="Add tag"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddTag();
-                  }
-                }}
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setIsEditingTags(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1"
-              onClick={() => setIsEditingTags(true)}
-            >
-              <PlusCircle className="w-4 h-4" />
-              Add Tag
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1"
+            onClick={handleAddTag}
+          >
+            <PlusCircle className="w-4 h-4" />
+            Add Tag
+          </Button>
         </div>
       </div>
 
-      <AlertDialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+      <AlertDialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Change Status</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to change the status to{" "}
-              {pendingStatus && getStatusDisplay(pendingStatus)}?
+              {newStatus && getStatusDisplay(newStatus)}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmStatusChange}
-              disabled={isLoading}
-            >
-              Confirm
-            </AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmStatusChange}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showPriorityDialog} onOpenChange={setShowPriorityDialog}>
+      <AlertDialog open={isPriorityDialogOpen} onOpenChange={setIsPriorityDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Change Priority</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to change the priority to {pendingPriority}?
+              Are you sure you want to change the priority to {newPriority}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmPriorityChange}
-              disabled={isLoading}
-            >
-              Confirm
-            </AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPriorityChange}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+      <AlertDialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Assign Ticket</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to assign this ticket to{" "}
-              {pendingAgent?.name}?
+              {selectedAgent ? agents.find(a => a.id === selectedAgent)?.full_name : "Unassigned"}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmAssignment}
-              disabled={isLoading}
-            >
-              Confirm
-            </AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAssignment}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

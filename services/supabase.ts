@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
-import { getSupabaseConfig, isDevelopment } from '@/utils/env';
+import { getSupabaseConfig } from '@/utils/env';
 
 /**
  * Service for managing Supabase client instances
@@ -34,10 +34,10 @@ export class SupabaseService {
         get(name: string) {
           return cookieStore.get(name);
         },
-        set(name: string, value: string, options: CookieOptions) {
+        set(_name: string, _value: string, _options: CookieOptions) {
           // This is handled by the middleware
         },
-        remove(name: string, options: CookieOptions) {
+        remove(_name: string, _options: CookieOptions) {
           // This is handled by the middleware
         }
       }

@@ -26,7 +26,7 @@ export function useRealtimeSubscription<T extends { [key: string]: any }>(
   useEffect(() => {
     if (!enabled) return;
 
-    let reloadTimeout: NodeJS.Timeout;
+    let reloadTimeout: NodeJS.Timeout | undefined;
     let newChannel = supabase.channel(channelName);
 
     // Add all subscription configs

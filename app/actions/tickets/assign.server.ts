@@ -25,7 +25,7 @@ export async function assignTicketAction(formData: FormData) {
       }
 
       // Create service client for database operations
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = SupabaseService.createServiceClient();
 
       // Convert empty strings to null
       const sanitizedUpdates = {

@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { Dashboard } from '@/components/dashboard/dashboard'
 import { withAgentAuth } from '@/components/hoc/with-auth'
+import { getDashboardStatsAction } from '@/app/actions/dashboard.server'
 
 export const metadata: Metadata = {
   title: 'Dashboard | Nexus',
@@ -8,9 +9,11 @@ export const metadata: Metadata = {
 }
 
 async function DashboardPage() {
+  const { stats, error } = await getDashboardStatsAction();
+
   return (
     <div className="container mx-auto py-8">
-      <Dashboard />
+      <Dashboard initialStats={stats} error={error} />
     </div>
   )
 }

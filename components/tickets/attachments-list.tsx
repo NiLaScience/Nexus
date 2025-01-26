@@ -71,9 +71,9 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
         // Set a new timeout to reload after a delay
         reloadTimeout = setTimeout(loadAttachments, 500);
       }
-    ).then(channel => {
+    ).then(() => {
       unsubscribe = () => {
-        RealtimeService.unsubscribeFromMessages(channel);
+        RealtimeService.unsubscribeFromTicketMessages(ticketId);
       };
     });
 

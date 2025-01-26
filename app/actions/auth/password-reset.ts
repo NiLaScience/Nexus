@@ -23,7 +23,7 @@ export async function forgotPasswordAction(formData: FormData) {
       return encodedRedirect("error", "/forgot-password", errors[0].message);
     },
     onSuccess: async (data: ForgotPasswordInput) => {
-      const supabase = await SupabaseService.createAnonymousClientWithCookies();
+      const supabase = SupabaseService.createAnonymousClient();
 
       const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
         redirectTo: `${origin}/auth/callback?redirect_to=/reset-password`,
@@ -52,7 +52,7 @@ export async function forgotPasswordAction(formData: FormData) {
 
 /**
  * Reset a user's password
- * @param formData Form data containing new password and confirmation
+ * @param formData Form data containing new password
  * @returns Redirect response with success/error message
  */
 export async function resetPasswordAction(formData: FormData) {
@@ -63,7 +63,7 @@ export async function resetPasswordAction(formData: FormData) {
       return encodedRedirect("error", "/reset-password", errors[0].message);
     },
     onSuccess: async (data: ResetPasswordInput) => {
-      const supabase = await SupabaseService.createAnonymousClientWithCookies();
+      const supabase = SupabaseService.createAnonymousClient();
 
       const { error } = await supabase.auth.updateUser({
         password: data.password,
@@ -73,11 +73,19 @@ export async function resetPasswordAction(formData: FormData) {
         return encodedRedirect(
           "error",
           "/reset-password",
-          "Password update failed"
+          "Could not reset password"
         );
       }
 
-      return encodedRedirect("success", "/sign-in", "Password updated successfully");
+      if (data.callbackUrl) {
+        return redirect(data.callbackUrl);
+      }
+
+      return encodedRedirect(
+        "success",
+        "/reset-password",
+        "Password has been reset successfully."
+      );
     }
   });
 } 

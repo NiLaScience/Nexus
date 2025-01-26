@@ -1,13 +1,7 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-
-interface DashboardStats {
-  openTickets: { total: number; highPriority: number };
-  avgResponseTime: { value: number; change: number };
-  csatScore: { value: number; period: string };
-  unassigned: { total: number };
-}
+import type { DashboardStats } from "@/types/dashboard";
 
 interface RecentActivity {
   title: string;
@@ -17,7 +11,7 @@ interface RecentActivity {
   ticketId: string;
 }
 
-interface TeamMember {
+export interface TeamMember {
   id: string;
   name: string;
   ticketCount: number;
@@ -49,127 +43,128 @@ interface TicketMessage {
   tickets?: { created_at: string } | null;
 }
 
+interface MessageWithTicket {
+  created_at: string;
+  ticket_id: string;
+  author: Array<{
+    role: string;
+  }>;
+  tickets: Array<{
+    created_at: string;
+  }>;
+}
+
 interface Team {
   id: string;
   name: string;
   members: TeamMember[];
 }
 
-export async function getDashboardStatsAction(): Promise<{ stats: DashboardStats | null; error: string | null }> {
+export async function getDashboardStatsAction() {
   try {
     const supabase = await createClient();
-    
-    // Get open tickets and high priority count
-    const { data: openTickets, error: openError } = await supabase
-      .from("tickets")
-      .select("id, priority")
-      .eq("status", "open")
-      .returns<Pick<Ticket, 'id' | 'priority'>[]>();
 
-    if (openError) {
-      console.error("Error fetching open tickets:", openError);
-      return { stats: null, error: "Failed to fetch open tickets" };
-    }
+    // Get open tickets count
+    const { count: openTicketsCount, error: openTicketsError } = await supabase
+      .from('tickets')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'open');
 
-    const highPriorityCount = openTickets?.filter(t => t.priority === "high").length || 0;
+    if (openTicketsError) throw openTicketsError;
 
-    // Get average response time for last 7 days
-    const now = new Date();
-    const lastWeek = new Date(now);
-    lastWeek.setDate(lastWeek.getDate() - 7);
+    // Get high priority open tickets count
+    const { count: highPriorityCount, error: highPriorityError } = await supabase
+      .from('tickets')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'open')
+      .eq('priority', 'high');
 
-    const { data: messages, error: msgError } = await supabase
-      .from("ticket_messages")
+    if (highPriorityError) throw highPriorityError;
+
+    // Get messages for response time calculation
+    const { data: messages, error: messagesError } = await supabase
+      .from('ticket_messages')
       .select(`
-        id,
-        ticket_id,
         created_at,
+        ticket_id,
         author:profiles!ticket_messages_author_id_fkey(role),
-        tickets!ticket_messages_ticket_id_fkey(created_at)
+        tickets!inner(created_at)
       `)
-      .gte("created_at", lastWeek.toISOString())
-      .order("created_at", { ascending: true })
-      .returns<TicketMessage[]>();
+      .eq('is_internal', false)
+      .order('created_at', { ascending: true });
 
-    if (msgError) {
-      console.error("Error fetching messages:", msgError);
-      return { stats: null, error: "Failed to fetch messages" };
-    }
+    if (messagesError) throw messagesError;
 
     // Calculate average response time
     let totalResponseTime = 0;
     let responseCount = 0;
     const ticketFirstResponse: { [key: string]: Date } = {};
 
-    messages?.forEach(msg => {
-      if (msg.author?.role === "agent" || msg.author?.role === "admin") {
-        if (!ticketFirstResponse[msg.ticket_id] && msg.tickets?.created_at) {
-          const responseTime = new Date(msg.created_at).getTime() - new Date(msg.tickets.created_at).getTime();
-          totalResponseTime += responseTime;
+    (messages as MessageWithTicket[])?.forEach(msg => {
+      if (msg.author[0]?.role === 'agent' || msg.author[0]?.role === 'admin') {
+        if (!ticketFirstResponse[msg.ticket_id] && msg.tickets[0]?.created_at) {
+          const messageDate = new Date(msg.created_at);
+          const ticketDate = new Date(msg.tickets[0].created_at);
+          const responseTime = messageDate.getTime() - ticketDate.getTime();
+          ticketFirstResponse[msg.ticket_id] = messageDate;
           responseCount++;
-          ticketFirstResponse[msg.ticket_id] = new Date(msg.created_at);
+          totalResponseTime += responseTime;
         }
       }
     });
 
-    const avgResponseTime = responseCount > 0 
-      ? totalResponseTime / responseCount / (1000 * 60 * 60)
-      : 0;
+    const averageResponseTime = responseCount > 0 ? totalResponseTime / responseCount / (1000 * 60 * 60) : 0;
 
-    // Get unassigned tickets
-    const { data: unassigned, error: unassignedError } = await supabase
-      .from("tickets")
-      .select("id")
-      .is("assigned_to", null)
-      .eq("status", "open")
-      .returns<Pick<Ticket, 'id'>[]>();
+    // Get satisfaction score
+    const { data: satisfactionData, error: satisfactionError } = await supabase
+      .from('ticket_ratings')
+      .select('rating');
 
-    if (unassignedError) {
-      console.error("Error fetching unassigned tickets:", unassignedError);
-      return { stats: null, error: "Failed to fetch unassigned tickets" };
-    }
+    if (satisfactionError) throw satisfactionError;
 
-    // Get CSAT score for last 30 days
-    const last30Days = new Date(now);
-    last30Days.setDate(last30Days.getDate() - 30);
+    const totalRatings = satisfactionData?.length || 0;
+    const totalScore = satisfactionData?.reduce((sum, { rating }) => sum + rating, 0) || 0;
+    const satisfactionScore = totalRatings > 0 ? Math.round((totalScore / (totalRatings * 5)) * 100) : 0;
 
-    const { data: ratings, error: ratingsError } = await supabase
-      .from("ticket_ratings")
-      .select("rating")
-      .gte("created_at", last30Days.toISOString());
+    // Get team size
+    const { data: teamData, error: teamError } = await supabase
+      .from('profiles')
+      .select('last_seen_at')
+      .in('role', ['agent', 'admin']);
 
-    if (ratingsError) {
-      console.error("Error fetching ratings:", ratingsError);
-      return { stats: null, error: "Failed to fetch ratings" };
-    }
+    if (teamError) throw teamError;
 
-    // Calculate average rating
-    const totalRatings = ratings?.length || 0;
-    const sumRatings = ratings?.reduce((sum, r) => sum + r.rating, 0) || 0;
-    const averageRating = totalRatings > 0 ? sumRatings / totalRatings : 0;
+    const totalTeamSize = teamData?.length || 0;
+    const onlineCount = teamData?.filter(member => {
+      if (!member.last_seen_at) return false;
+      const lastSeen = new Date(member.last_seen_at);
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      return lastSeen > fiveMinutesAgo;
+    }).length || 0;
 
     const stats: DashboardStats = {
-      openTickets: { 
-        total: openTickets?.length || 0,
-        highPriority: highPriorityCount 
+      openTickets: {
+        total: openTicketsCount || 0,
+        highPriority: highPriorityCount || 0,
       },
-      avgResponseTime: { 
-        value: avgResponseTime,
-        change: -0.3 // TODO: Implement previous period comparison
+      responseTime: {
+        average: Math.round(averageResponseTime * 10) / 10, // Round to 1 decimal place
+        trend: 0, // TODO: Calculate trend
       },
-      csatScore: {
-        value: Number(averageRating.toFixed(1)),
-        period: "Last 30 days"
+      satisfaction: {
+        score: satisfactionScore,
+        responses: totalRatings,
       },
-      unassigned: {
-        total: unassigned?.length || 0
-      }
+      teamSize: {
+        total: totalTeamSize,
+        online: onlineCount,
+      },
     };
 
     return { stats, error: null };
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
-    return { stats: null, error: 'Failed to fetch dashboard stats' };
+    return { stats: null, error: 'Failed to load dashboard stats' };
   }
 }
 

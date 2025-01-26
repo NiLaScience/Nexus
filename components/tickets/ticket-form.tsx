@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,20 +13,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
-import type { CustomField } from "@/types/custom-fields";
+import type { CustomField } from "../../types/custom-fields";
+import type { WorkspaceSettings } from "../../types/workspace-settings";
 import { getAvailableTagsAction } from "@/app/actions/tickets.server";
-import { createTicketAction } from "@/app/actions/tickets/create.server";
-import { useToast } from "@/components/ui/use-toast";
 import { FormMessage } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import type { TicketInput } from '@/app/actions/tickets/schemas';
+import type { ValidationResult } from '../../types/form';
+import { useRouter } from 'next/navigation';
+import { toast } from "@/components/ui/use-toast";
 
-export function TicketForm() {
+interface TicketFormProps {
+  onSubmit: (formData: FormData) => Promise<ValidationResult<TicketInput>>;
+}
+
+export function TicketForm({ onSubmit }: TicketFormProps) {
   const router = useRouter();
-  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tagInput, setTagInput] = useState('');
-  const [workspaceSettings, setWorkspaceSettings] = useState<any>(null);
+  const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings | null>(null);
   const [, setAvailableTags] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -72,6 +76,37 @@ export function TicketForm() {
     loadAvailableTags();
   }, []);
 
+  const handleSubmit = async (formData: FormData) => {
+    setFormError(null);
+
+    try {
+      const result = await onSubmit(formData);
+      
+      if (!result.success) {
+        setFormError(result.errors?.[0]?.message || 'Failed to create ticket');
+        toast({
+          title: "Error",
+          description: result.errors?.[0]?.message || 'Failed to create ticket',
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Ticket created successfully",
+      });
+      router.push('/tickets');
+    } catch (error) {
+      setFormError('An unexpected error occurred');
+      toast({
+        title: "Error",
+        description: 'An unexpected error occurred',
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleCustomFieldChange = (name: string, value: string | number | Date) => {
     setFormState(prev => ({
       ...prev,
@@ -112,45 +147,6 @@ export function TicketForm() {
     }));
     setFormError(null);
   };
-
-  async function handleSubmit(formData: FormData) {
-    try {
-      const result = await createTicketAction(formData);
-      
-      if ('error' in result) {
-        setFormError(result.error || 'Failed to create ticket');
-        return;
-      }
-
-      toast({
-        title: 'Success',
-        description: 'Ticket created successfully',
-      });
-
-      // Reset form
-      setFormState({
-        title: '',
-        description: '',
-        priority: 'medium',
-        status: 'open',
-        tags: [],
-        custom_fields: {},
-        files: []
-      });
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      setTagInput('');
-      setFormError(null);
-
-      // Redirect to the new ticket
-      if (result.result?.ticket?.id) {
-        router.push(`/tickets/${result.result.ticket.id}`);
-      }
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Failed to create ticket');
-    }
-  }
 
   return (
     <div className="space-y-6">

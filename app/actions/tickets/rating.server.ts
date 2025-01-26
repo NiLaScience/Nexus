@@ -24,7 +24,7 @@ export async function addTicketRatingAction(
       throw new Error(authError || "Not authenticated");
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
     // Verify the ticket is in resolved status
     const { data: ticket, error: ticketError } = await supabase
@@ -71,7 +71,7 @@ export async function getTicketRatingAction(ticketId: string) {
       throw new Error(authError || "Not authenticated");
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
     // Get the ticket to check if user has access
     const { data: ticket, error: ticketError } = await supabase
@@ -119,7 +119,7 @@ export async function getCustomerSatisfactionStatsAction() {
       throw new Error("Only admins can view satisfaction stats");
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
     // Get ratings distribution
     const { data: ratings, error } = await supabase

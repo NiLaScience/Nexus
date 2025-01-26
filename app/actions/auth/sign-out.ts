@@ -18,7 +18,7 @@ export async function signOutAction() {
     }
 
     // Sign out using the authenticated client
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createAnonymousClient();
     const { error } = await supabase.auth.signOut();
 
     if (error) {

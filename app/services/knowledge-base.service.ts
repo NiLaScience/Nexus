@@ -112,10 +112,25 @@ export class KnowledgeBaseService {
     return articles;
   }
 
-  async getRelatedArticles(articleId: string): Promise<Article[]> {
+  async getRelatedArticles(articleId: string, limit = 5): Promise<Article[]> {
     await this.ensureClient();
 
-    const { data: articles, error } = await this.supabase
+    // Get the current article's categories
+    const { data: currentArticle, error: articleError } = await this.supabase
+      .from('articles')
+      .select('categories!articles_categories(id)')
+      .eq('id', articleId)
+      .single();
+
+    if (articleError) {
+      console.error('Error getting article categories:', articleError);
+      throw new Error('Failed to get article categories');
+    }
+
+    const categoryIds = currentArticle.categories.map((cat: any) => cat.id);
+
+    // Get related articles from the same categories
+    const { data: relatedArticles, error: relatedError } = await this.supabase
       .from('articles')
       .select(`
         id,
@@ -131,16 +146,17 @@ export class KnowledgeBaseService {
           name
         )
       `)
-      .neq('id', articleId)
-      .limit(5)
-      .order('view_count', { ascending: false });
+      .neq('id', articleId) // Exclude the current article
+      .in('categories.id', categoryIds)
+      .order('view_count', { ascending: false })
+      .limit(limit);
 
-    if (error) {
-      console.error('Error fetching related articles:', error);
-      throw new Error('Failed to fetch related articles');
+    if (relatedError) {
+      console.error('Error getting related articles:', relatedError);
+      throw new Error('Failed to get related articles');
     }
 
-    return articles;
+    return relatedArticles || [];
   }
 
   async findSimilarArticles(query: string, limit = 5): Promise<Article[]> {

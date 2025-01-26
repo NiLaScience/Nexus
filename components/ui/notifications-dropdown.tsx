@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
-import { AuthService } from "@/services/auth";
+import { AuthClientService } from "@/services/auth.client";
 import { notificationService } from "@/app/services/instances";
 import type { Notification } from "@/app/services/notification.service";
 
@@ -27,7 +27,7 @@ export function NotificationsDropdown() {
   useEffect(() => {
     const loadNotifications = async () => {
       try {
-        const { user, error } = await AuthService.getCurrentUser();
+        const { user, error } = await AuthClientService.getCurrentUser();
         if (error || !user) {
           console.error('Error loading user:', error);
           return;

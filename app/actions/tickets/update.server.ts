@@ -25,7 +25,7 @@ export async function updateTicketStatusAction(formData: FormData) {
       }
 
       // Create service client for database operations
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = SupabaseService.createServiceClient();
 
       // Update the ticket status
       const { error: updateError } = await serviceClient
@@ -78,7 +78,7 @@ export async function updateTicketPriorityAction(formData: FormData) {
       }
 
       // Create service client for database operations
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = SupabaseService.createServiceClient();
 
       // Update the ticket priority
       const { error: updateError } = await serviceClient

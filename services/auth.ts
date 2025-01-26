@@ -6,9 +6,9 @@ export interface AuthUser extends User {
   profile?: Profile;
 }
 
-export interface AuthSession {
+export interface AuthResponse {
   user: AuthUser | null;
-  error?: string;
+  error: string | null;
 }
 
 /**
@@ -18,16 +18,16 @@ export class AuthService {
   /**
    * Get the current authenticated user with their profile
    */
-  static async getCurrentUser(): Promise<AuthSession> {
+  static async getCurrentUser(): Promise<AuthResponse> {
     try {
-      const supabase = await SupabaseService.createClientWithCookies();
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const supabase = SupabaseService.createAnonymousClient();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-      if (userError || !user) {
-        return { user: null, error: userError?.message };
+      if (authError || !user) {
+        return { user: null, error: authError?.message || 'Not authenticated' };
       }
 
-      // Get user's profile
+      // Get the user's profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -35,20 +35,19 @@ export class AuthService {
         .single();
 
       if (profileError) {
+        console.error('Error fetching profile:', profileError);
         return { user: null, error: profileError.message };
       }
 
-      return {
-        user: {
-          ...user,
-          profile,
-        },
+      const authUser: AuthUser = {
+        ...user,
+        profile
       };
+
+      return { user: authUser, error: null };
     } catch (error) {
-      return {
-        user: null,
-        error: error instanceof Error ? error.message : 'Failed to get user',
-      };
+      console.error('Error in getCurrentUser:', error);
+      return { user: null, error: (error as Error).message };
     }
   }
 
@@ -57,7 +56,7 @@ export class AuthService {
    */
   static async getSession() {
     try {
-      const supabase = await SupabaseService.createClientWithCookies();
+      const supabase = SupabaseService.createAnonymousClient();
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (error) {

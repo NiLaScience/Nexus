@@ -10,14 +10,28 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getDashboardStatsAction } from "@/app/actions/dashboard.server";
-import { Suspense } from "react";
+import type { DashboardStats } from "@/types/dashboard";
 
-async function QuickStatsContent() {
-  const stats = await getDashboardStatsAction();
-  
+interface QuickStatsProps {
+  initialStats: DashboardStats | null;
+  error: string | null;
+}
+
+export function QuickStats({ initialStats: stats, error }: QuickStatsProps) {
+  if (error) {
+    return (
+      <div className="text-center text-destructive py-8">
+        {error}
+      </div>
+    );
+  }
+
   if (!stats) {
-    return null;
+    return (
+      <div className="text-center text-muted-foreground py-8">
+        No stats available
+      </div>
+    );
   }
 
   return (
@@ -40,14 +54,14 @@ async function QuickStatsContent() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-normal text-muted-foreground">
-            Avg Response Time
+            Response Time
           </CardTitle>
-          <Timer className="h-4 w-4 text-primary" />
+          <Timer className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-medium">{stats.avgResponseTime.value.toFixed(1)}h</div>
-          <p className={`text-xs ${stats.avgResponseTime.change < 0 ? "text-success" : "text-destructive"}`}>
-            {stats.avgResponseTime.change > 0 ? "↑" : "↓"} {Math.abs(stats.avgResponseTime.change)}h from last week
+          <div className="text-2xl font-medium">{stats.responseTime.average}h</div>
+          <p className="text-xs text-muted-foreground">
+            {stats.responseTime.trend > 0 ? "+" : ""}{stats.responseTime.trend}% from last week
           </p>
         </CardContent>
       </Card>
@@ -55,38 +69,32 @@ async function QuickStatsContent() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-normal text-muted-foreground">
-            CSAT Score
+            Customer Satisfaction
           </CardTitle>
-          <ThumbsUp className="h-4 w-4 text-success" />
+          <ThumbsUp className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-medium">{stats.csatScore.value}</div>
-          <p className="text-xs text-muted-foreground">{stats.csatScore.period}</p>
+          <div className="text-2xl font-medium">{stats.satisfaction.score}%</div>
+          <p className="text-xs text-muted-foreground">
+            {stats.satisfaction.responses} responses
+          </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-normal text-muted-foreground">
-            Unassigned
+            Team Size
           </CardTitle>
-          <Users className="h-4 w-4 text-warning" />
+          <Users className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-medium">{stats.unassigned.total}</div>
+          <div className="text-2xl font-medium">{stats.teamSize.total}</div>
           <p className="text-xs text-muted-foreground">
-            {stats.unassigned.total > 0 ? "Needs attention" : "All tickets assigned"}
+            {stats.teamSize.online} online
           </p>
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-export function QuickStats() {
-  return (
-    <Suspense fallback={<div>Loading stats...</div>}>
-      <QuickStatsContent />
-    </Suspense>
   );
 } 

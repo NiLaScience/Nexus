@@ -7,13 +7,13 @@ import { ProfileTab } from "@/components/settings/profile-tab";
 import { NotificationsTab } from "@/components/settings/notifications-tab";
 import { TeamTab } from "@/components/settings/team-tab";
 import { AdminTab } from "@/components/settings/admin-tab";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { getProfileAction } from "@/app/actions/profile";
 import { useSearchParams } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Profile } from '@/types/team';
 
-export default function SettingsPage() {
+function SettingsContent() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
@@ -48,31 +48,42 @@ export default function SettingsPage() {
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="w-4 h-4" /> Notifications
           </TabsTrigger>
-          <TabsTrigger value="team" className="flex items-center gap-2">
-            <Users className="w-4 h-4" /> Team
-          </TabsTrigger>
           {profile?.role === 'admin' && (
-            <TabsTrigger value="admin" className="flex items-center gap-2">
-              <Shield className="w-4 h-4" /> Admin
-            </TabsTrigger>
+            <>
+              <TabsTrigger value="team" className="flex items-center gap-2">
+                <Users className="w-4 h-4" /> Team
+              </TabsTrigger>
+              <TabsTrigger value="admin" className="flex items-center gap-2">
+                <Shield className="w-4 h-4" /> Admin
+              </TabsTrigger>
+            </>
           )}
         </TabsList>
-
         <TabsContent value="profile">
-          <ProfileTab />
+          <ProfileTab profile={profile} />
         </TabsContent>
         <TabsContent value="notifications">
           <NotificationsTab />
         </TabsContent>
-        <TabsContent value="team">
-          <TeamTab />
-        </TabsContent>
         {profile?.role === 'admin' && (
-          <TabsContent value="admin">
-            <AdminTab />
-          </TabsContent>
+          <>
+            <TabsContent value="team">
+              <TeamTab />
+            </TabsContent>
+            <TabsContent value="admin">
+              <AdminTab />
+            </TabsContent>
+          </>
         )}
       </Tabs>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <SettingsContent />
+    </Suspense>
   );
 } 

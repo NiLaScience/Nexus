@@ -20,7 +20,7 @@ export async function signInAction(formData: FormData) {
       return encodedRedirect("error", "/sign-in", errors[0].message);
     },
     onSuccess: async (data: SignInInput) => {
-      const supabase = await SupabaseService.createAnonymousClientWithCookies();
+      const supabase = SupabaseService.createAnonymousClient();
 
       const { error } = await supabase.auth.signInWithPassword({
         email: data.email,

@@ -18,7 +18,8 @@ import { useToast } from "@/components/ui/use-toast";
 import ReactMarkdown from 'react-markdown';
 import dynamic from 'next/dynamic';
 import { RealtimeService } from '@/services/realtime';
-import { AuthService } from '@/services/auth';
+import { AuthClientService } from '@/services/auth.client';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 const MDEditor = dynamic(
   () => import('@uiw/react-md-editor').then((mod) => mod.default),
@@ -43,7 +44,7 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
   useEffect(() => {
     const initializeUser = async () => {
       try {
-        const { user, error } = await AuthService.getCurrentUser();
+        const { user, error } = await AuthClientService.getCurrentUser();
         if (error || !user?.profile) {
           toast({
             title: "Error",
@@ -52,27 +53,12 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
           });
           return;
         }
-
-        // Only allow agents and admins to view internal notes
-        if (user.profile.role === 'customer') {
-          toast({
-            title: "Error",
-            description: "You do not have permission to view internal notes",
-            variant: "destructive",
-          });
-          return;
-        }
-
         setUserRole(user.profile.role);
       } catch (error) {
         console.error('Error initializing user:', error);
-        toast({
-          title: "Error",
-          description: "Failed to initialize user",
-          variant: "destructive",
-        });
       }
     };
+
     initializeUser();
   }, [toast]);
 
@@ -86,7 +72,7 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
     if ((!noteText.trim() && selectedFiles.length === 0) || isSubmitting) return;
 
     try {
-      const { user, error: authError } = await AuthService.getCurrentUser();
+      const { user, error: authError } = await AuthClientService.getCurrentUser();
       if (authError || !user?.profile) {
         toast({
           title: "Error",
@@ -189,7 +175,7 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
   // Load notes with attachments
   const loadNotes = useCallback(async () => {
     try {
-      const { user, error: authError } = await AuthService.getCurrentUser();
+      const { user, error: authError } = await AuthClientService.getCurrentUser();
       if (authError || !user?.profile) {
         toast({
           title: "Error",
@@ -235,10 +221,12 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
     let channel: any;
 
     const setupSubscription = async () => {
-      channel = await RealtimeService.subscribeToMessages(ticketId, async (payload) => {
-        const message = await getMessageWithAttachmentsAction(payload.new.id);
-        if (message.message_type === 'internal') {
-          setNotes(prev => [...prev, message]);
+      channel = await RealtimeService.subscribeToTicketMessages(ticketId, async (payload: RealtimePostgresChangesPayload<TicketMessage>) => {
+        if (payload.new && 'id' in payload.new && payload.new.id) {
+          const message = await getMessageWithAttachmentsAction(payload.new.id);
+          if (message && message.message_type === 'internal') {
+            setNotes(prev => [...prev, message]);
+          }
         }
       });
     };
@@ -247,7 +235,7 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
 
     return () => {
       if (channel) {
-        RealtimeService.unsubscribeFromMessages(channel);
+        RealtimeService.unsubscribeFromTicketMessages(channel);
       }
     };
   }, [ticketId]);

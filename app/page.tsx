@@ -1,17 +1,15 @@
 import { redirect } from "next/navigation";
 import { AuthService } from "@/services/auth";
 import { withAuth } from "@/components/hoc/with-auth";
-import type { AuthSession } from "@/services/auth";
+import type { AuthResponse } from "@/services/auth";
 
 function Home() {
-  return AuthService.getCurrentUser().then((session: AuthSession) => {
-    // Redirect based on role
-    if (session.user?.profile?.role === 'customer') {
-      redirect("/tickets");
+  return AuthService.getCurrentUser().then((response: AuthResponse) => {
+    if (response.user?.profile?.role === 'customer') {
+      redirect('/tickets');
+    } else {
+      redirect('/dashboard');
     }
-
-    redirect("/dashboard");
-    return null; // Required for React component
   });
 }
 

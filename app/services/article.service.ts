@@ -33,7 +33,7 @@ export class ArticleService {
 
   private async initializeClient() {
     if (!this.supabase) {
-      this.supabase = await SupabaseService.createClientWithCookies();
+      this.supabase = SupabaseService.createAnonymousClient();
     }
   }
 

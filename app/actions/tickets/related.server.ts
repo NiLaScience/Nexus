@@ -35,7 +35,7 @@ export async function getRelatedTicketsAction(ticketId: string) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
     // First get the current ticket's organization and tags
     const { data: currentTicket, error: ticketError } = await supabase

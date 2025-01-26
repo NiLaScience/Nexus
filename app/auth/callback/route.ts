@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const next = requestUrl.searchParams.get("next")?.toString();
 
   if (code) {
-    const supabase = await SupabaseService.createAnonymousClientWithCookies();
+    const supabase = SupabaseService.createAnonymousClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (error) {

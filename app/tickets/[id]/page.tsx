@@ -23,7 +23,7 @@ async function TicketPage({ params, user }: PageProps) {
   const isCustomer = user.profile?.role === 'customer';
 
   // Fetch ticket with related profiles and tags
-  const supabase = await SupabaseService.createClientWithCookies();
+  const supabase = SupabaseService.createServiceClient();
   const { data: ticket, error: ticketError } = await supabase
     .from('tickets')
     .select(`

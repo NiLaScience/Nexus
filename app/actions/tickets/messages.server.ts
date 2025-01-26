@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 
 export async function getTicketMessagesAction(ticketId: string) {
   console.log('Fetching messages for ticket:', ticketId);
-  const supabase = await SupabaseService.createClientWithCookies();
+  const supabase = SupabaseService.createServiceClient();
 
   try {
     // Debug: First check all messages in the table
@@ -83,7 +83,7 @@ export async function addMessageAction(formData: FormData) {
       }
 
       // Create service client for database operations
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = SupabaseService.createServiceClient();
 
       // Add the message
       const { data: message, error: insertError } = await serviceClient
@@ -130,7 +130,7 @@ export async function addMessageAction(formData: FormData) {
 
 export async function getInternalNotesAction(ticketId: string) {
   console.log('Fetching internal notes for ticket:', ticketId);
-  const supabase = await SupabaseService.createClientWithCookies();
+  const supabase = SupabaseService.createServiceClient();
 
   try {
     const { data: messages, error } = await supabase
@@ -191,7 +191,7 @@ export async function addInternalNoteAction(formData: FormData) {
       }
 
       // Create service client for database operations
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = SupabaseService.createServiceClient();
 
       // Add the internal note
       const { data: message, error: insertError } = await serviceClient
@@ -237,7 +237,7 @@ export async function addInternalNoteAction(formData: FormData) {
 }
 
 export async function getMessageWithAttachmentsAction(messageId: string) {
-  const supabase = await SupabaseService.createClientWithCookies();
+  const supabase = SupabaseService.createServiceClient();
   const { data: message, error } = await supabase
     .from('ticket_messages')
     .select(`

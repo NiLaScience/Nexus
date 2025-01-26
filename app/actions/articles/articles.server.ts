@@ -1,14 +1,16 @@
 'use server';
 
-import { articleService, knowledgeBaseService } from '@/app/services/instances';
+import { ArticleServerService } from '@/app/services/server/article.server';
 import type { ArticleInput, CategoryInput } from './schemas';
 
+const articleServerService = new ArticleServerService();
+
 export async function getArticles() {
-  return articleService.getArticles();
+  return articleServerService.getArticles();
 }
 
 export async function getArticle(id: string) {
-  return articleService.getArticle(id);
+  return articleServerService.getArticle(id);
 }
 
 export async function createArticle(formData: FormData) {
@@ -24,7 +26,7 @@ export async function createArticle(formData: FormData) {
     workspace_id: workspaceId,
   };
 
-  return articleService.createArticle(data);
+  return articleServerService.createArticle(data);
 }
 
 export async function updateArticle(id: string, formData: FormData) {
@@ -38,15 +40,15 @@ export async function updateArticle(id: string, formData: FormData) {
     category_id: categoryId,
   };
 
-  return articleService.updateArticle(id, data);
+  return articleServerService.updateArticle(id, data);
 }
 
 export async function deleteArticle(id: string) {
-  return articleService.deleteArticle(id);
+  return articleServerService.deleteArticle(id);
 }
 
 export async function getCategories() {
-  return articleService.getCategories();
+  return articleServerService.getCategories();
 }
 
 export async function createCategory(formData: FormData) {
@@ -58,7 +60,7 @@ export async function createCategory(formData: FormData) {
     workspace_id: workspaceId,
   };
 
-  return articleService.createCategory(data);
+  return articleServerService.createCategory(data);
 }
 
 export async function updateCategory(id: string, formData: FormData) {
@@ -68,37 +70,37 @@ export async function updateCategory(id: string, formData: FormData) {
     name,
   };
 
-  return articleService.updateCategory(id, data);
+  return articleServerService.updateCategory(id, data);
 }
 
 export async function deleteCategory(id: string) {
-  return articleService.deleteCategory(id);
+  return articleServerService.deleteCategory(id);
 }
 
 export async function voteArticle(id: string, voteType: 'up' | 'down') {
-  return articleService.voteArticle(id, voteType);
+  return articleServerService.voteArticle(id, voteType);
 }
 
 export async function getTrendingArticles() {
-  return articleService.getTrendingArticles();
+  return articleServerService.getTrendingArticles();
 }
 
 export async function searchArticles(query: string) {
-  return knowledgeBaseService.searchArticles(query);
+  return articleServerService.searchArticles(query);
 }
 
 export async function getArticlesByCategory(categoryId: string) {
-  return knowledgeBaseService.getArticlesByCategory(categoryId);
+  return articleServerService.getArticlesByCategory(categoryId);
 }
 
 export async function getRelatedArticles(articleId: string, limit?: number) {
-  return knowledgeBaseService.getRelatedArticles(articleId, limit);
+  return articleServerService.getRelatedArticles(articleId, limit);
 }
 
 export async function findSimilarArticles(query: string, limit?: number) {
-  return knowledgeBaseService.findSimilarArticles(query, limit);
+  return articleServerService.findSimilarArticles(query, limit);
 }
 
 export async function suggestArticlesForTicket(ticketContent: string) {
-  return knowledgeBaseService.suggestArticlesForTicket(ticketContent);
+  return articleServerService.suggestArticlesForTicket(ticketContent);
 } 

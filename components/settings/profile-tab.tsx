@@ -12,21 +12,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEffect, useState } from "react";
-import { updateProfileAction, getProfileAction, getAvailableRolesAction, joinOrganizationAction } from "@/app/actions/profile";
+import { updateProfileAction, getAvailableRolesAction, joinOrganizationAction } from "@/app/actions/profile";
 import { getOrganizationsAction } from "@/app/actions/teams.server";
 import { useToast } from "@/components/ui/use-toast";
 import { AgentSkills } from "./agent-skills";
+import type { Profile, Organization } from "@/types/team";
 
-export function ProfileTab() {
-  const [profile, setProfile] = useState<{
-    id: string;
-    full_name: string;
-    email: string;
-    role: string;
-    organization_id: string | null;
-  } | null>(null);
+interface ProfileTabProps {
+  profile: Profile | null;
+}
+
+export function ProfileTab({ profile: initialProfile }: ProfileTabProps) {
+  const [profile, setProfile] = useState<Profile | null>(initialProfile);
   const [roles, setRoles] = useState<readonly string[]>([]);
-  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -34,32 +33,18 @@ export function ProfileTab() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [profileResult, rolesResult, orgsResult] = await Promise.all([
-          getProfileAction(),
+        const [rolesResult, orgsResult] = await Promise.all([
           getAvailableRolesAction(),
-          getOrganizationsAction()
+          getOrganizationsAction(),
         ]);
 
-        if (profileResult.error) {
-          toast({
-            title: "Error",
-            description: profileResult.error,
-            variant: "destructive",
-          });
-          return;
-        }
-
-        if (profileResult.profile) {
-          setProfile(profileResult.profile);
-        }
-        setRoles(rolesResult.roles);
-        if (!orgsResult.error) {
-          setOrganizations(orgsResult.organizations || []);
-        }
+        setRoles(rolesResult.roles || []);
+        setOrganizations(orgsResult.organizations || []);
       } catch (error) {
+        console.error('Error loading data:', error);
         toast({
           title: "Error",
-          description: "Failed to load profile data",
+          description: "Failed to load data",
           variant: "destructive",
         });
       } finally {
@@ -69,6 +54,10 @@ export function ProfileTab() {
 
     loadData();
   }, [toast]);
+
+  useEffect(() => {
+    setProfile(initialProfile);
+  }, [initialProfile]);
 
   const handleSave = async () => {
     if (!profile) return;
@@ -219,7 +208,6 @@ export function ProfileTab() {
             {currentOrganization && (
               <p className="text-sm text-muted-foreground mt-1">
                 Current organization: {currentOrganization.name}
-                {currentOrganization.domain && ` (${currentOrganization.domain})`}
               </p>
             )}
           </div>

@@ -36,7 +36,7 @@ interface TeamResponse {
 
 export async function getTeamMembersAction(): Promise<TeamResponse> {
   try {
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
     const { data: members, error } = await supabase
       .from('profiles')
       .select('id, full_name, email, role, is_active, organization_id')
@@ -50,13 +50,13 @@ export async function getTeamMembersAction(): Promise<TeamResponse> {
     return { members: members || [], error: null };
   } catch (error) {
     console.error('Error fetching team members:', error);
-    return { members: [], error: 'Failed to fetch team members' };
+    return { members: [], error: error instanceof Error ? error.message : 'Failed to fetch team members' };
   }
 }
 
 export async function getTeamMemberAction(userId: string): Promise<{ member: TeamMemberWithTeam | null; error: string | null }> {
   try {
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
     
     interface RawTeamMemberResponse {
       team: {
@@ -103,16 +103,19 @@ export async function getTeamMemberAction(userId: string): Promise<{ member: Tea
     return { member: member || null, error: null };
   } catch (error) {
     console.error('Error fetching team member:', error);
-    return { member: null, error: 'Failed to fetch team member' };
+    return { member: null, error: error instanceof Error ? error.message : 'Failed to fetch team member' };
   }
 }
 
 export async function updateTeamMemberAction(userId: string, data: Partial<TeamMemberUser>): Promise<{ error: string | null }> {
   try {
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
     const { error } = await supabase
       .from('profiles')
-      .update(data)
+      .update({
+        ...data,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', userId);
 
     if (error) {
@@ -122,6 +125,6 @@ export async function updateTeamMemberAction(userId: string, data: Partial<TeamM
     return { error: null };
   } catch (error) {
     console.error('Error updating team member:', error);
-    return { error: 'Failed to update team member' };
+    return { error: error instanceof Error ? error.message : 'Failed to update team member' };
   }
 } 

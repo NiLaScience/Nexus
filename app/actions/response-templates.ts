@@ -36,7 +36,7 @@ export async function createTemplate(input: CreateTemplateInput) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
     // Verify user has access to the team
     const { data: teamMember, error: teamError } = await supabase
@@ -50,6 +50,7 @@ export async function createTemplate(input: CreateTemplateInput) {
       throw new Error('You do not have access to create templates for this team')
     }
 
+    // Create the template
     const { data: template, error } = await supabase
       .from('response_templates')
       .insert({
@@ -57,17 +58,22 @@ export async function createTemplate(input: CreateTemplateInput) {
         content: input.content,
         team_id: input.team_id,
         created_by: user.id,
+        usage_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      throw error
+    }
 
     revalidatePath('/templates')
-    return { template, error: null }
+    return { template }
   } catch (error) {
     console.error('Error creating template:', error)
-    return { template: null, error: error instanceof Error ? error.message : 'Failed to create template' }
+    return { error: error instanceof Error ? error.message : 'Failed to create template' }
   }
 }
 
@@ -79,41 +85,53 @@ export async function updateTemplate(input: UpdateTemplateInput) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
-    const updates: Partial<ResponseTemplate> = {}
-    if (input.name) updates.name = input.name
-    if (input.content) updates.content = input.content
-    if ('team_id' in input && input.team_id) {
-      // Verify user has access to the new team
-      const { data: teamMember, error: teamError } = await supabase
-        .from('team_members')
-        .select()
-        .eq('team_id', input.team_id)
-        .eq('user_id', user.id)
-        .single()
+    // Get the current template
+    const { data: currentTemplate, error: templateError } = await supabase
+      .from('response_templates')
+      .select('team_id')
+      .eq('id', input.id)
+      .single()
 
-      if (teamError || !teamMember) {
-        throw new Error('You do not have access to move templates to this team')
-      }
-
-      updates.team_id = input.team_id
+    if (templateError || !currentTemplate) {
+      throw new Error('Template not found')
     }
 
+    // Verify user has access to the team
+    const { data: teamMember, error: teamError } = await supabase
+      .from('team_members')
+      .select()
+      .eq('team_id', currentTemplate.team_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (teamError || !teamMember) {
+      throw new Error('You do not have access to update this template')
+    }
+
+    // Update the template
     const { data: template, error } = await supabase
       .from('response_templates')
-      .update(updates)
+      .update({
+        ...(input.name && { name: input.name }),
+        ...(input.content && { content: input.content }),
+        ...(input.team_id && { team_id: input.team_id }),
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', input.id)
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      throw error
+    }
 
     revalidatePath('/templates')
-    return { template, error: null }
+    return { template }
   } catch (error) {
     console.error('Error updating template:', error)
-    return { template: null, error: error instanceof Error ? error.message : 'Failed to update template' }
+    return { error: error instanceof Error ? error.message : 'Failed to update template' }
   }
 }
 
@@ -125,39 +143,43 @@ export async function deleteTemplate(id: string) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
-    // Verify user has access to the template's team
-    const { data: template, error: templateError } = await supabase
+    // Get the current template
+    const { data: currentTemplate, error: templateError } = await supabase
       .from('response_templates')
       .select('team_id')
       .eq('id', id)
-      .single();
+      .single()
 
-    if (templateError || !template) {
-      throw new Error('Template not found');
+    if (templateError || !currentTemplate) {
+      throw new Error('Template not found')
     }
 
+    // Verify user has access to the team
     const { data: teamMember, error: teamError } = await supabase
       .from('team_members')
       .select()
-      .eq('team_id', template.team_id)
+      .eq('team_id', currentTemplate.team_id)
       .eq('user_id', user.id)
-      .single();
+      .single()
 
     if (teamError || !teamMember) {
-      throw new Error('You do not have access to delete this template');
+      throw new Error('You do not have access to delete this template')
     }
 
+    // Delete the template
     const { error } = await supabase
       .from('response_templates')
       .delete()
       .eq('id', id)
 
-    if (error) throw error
+    if (error) {
+      throw error
+    }
 
     revalidatePath('/templates')
-    return { error: null }
+    return { success: true }
   } catch (error) {
     console.error('Error deleting template:', error)
     return { error: error instanceof Error ? error.message : 'Failed to delete template' }
@@ -172,35 +194,41 @@ export async function getTemplate(id: string) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
+    // Get the template
     const { data: template, error } = await supabase
       .from('response_templates')
       .select(`
         *,
-        team:teams(id, name)
+        team:teams (
+          id,
+          name
+        )
       `)
       .eq('id', id)
       .single()
 
-    if (error) throw error
+    if (error) {
+      throw error
+    }
 
-    // Verify user has access to the template's team
+    // Verify user has access to the team
     const { data: teamMember, error: teamError } = await supabase
       .from('team_members')
       .select()
       .eq('team_id', template.team_id)
       .eq('user_id', user.id)
-      .single();
+      .single()
 
     if (teamError || !teamMember) {
-      throw new Error('You do not have access to view this template');
+      throw new Error('You do not have access to view this template')
     }
 
-    return { template, error: null }
+    return { template }
   } catch (error) {
-    console.error('Error fetching template:', error)
-    return { template: null, error: error instanceof Error ? error.message : 'Failed to fetch template' }
+    console.error('Error getting template:', error)
+    return { error: error instanceof Error ? error.message : 'Failed to get template' }
   }
 }
 
@@ -212,94 +240,64 @@ export async function listTemplates(teamId?: string) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
-    let query = supabase
-      .from('response_templates')
-      .select(`
-        *,
-        team:teams(id, name)
-      `)
-      .order('name')
-
+    // Get user's teams if no teamId provided
+    let teamIds: string[] = []
     if (teamId) {
-      // Verify user has access to the team
-      const { data: teamMember, error: teamError } = await supabase
-        .from('team_members')
-        .select()
-        .eq('team_id', teamId)
-        .eq('user_id', user.id)
-        .single();
-
-      if (teamError || !teamMember) {
-        throw new Error('You do not have access to view templates for this team');
-      }
-
-      query = query.eq('team_id', teamId)
+      teamIds = [teamId]
     } else {
-      // Only show templates from teams the user is a member of
       const { data: teams, error: teamsError } = await supabase
         .from('team_members')
         .select('team_id')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
 
-      if (teamsError) throw teamsError;
+      if (teamsError) {
+        throw teamsError
+      }
 
-      query = query.in('team_id', teams.map(t => t.team_id));
+      teamIds = teams.map(t => t.team_id)
     }
 
-    const { data: templates, error } = await query
+    // Get templates for the teams
+    const { data: templates, error } = await supabase
+      .from('response_templates')
+      .select(`
+        *,
+        team:teams (
+          id,
+          name
+        )
+      `)
+      .in('team_id', teamIds)
+      .order('name')
 
-    if (error) throw error
+    if (error) {
+      throw error
+    }
 
-    return { templates, error: null }
+    return { templates }
   } catch (error) {
     console.error('Error listing templates:', error)
-    return { templates: null, error: error instanceof Error ? error.message : 'Failed to list templates' }
+    return { error: error instanceof Error ? error.message : 'Failed to list templates' }
   }
 }
 
 export async function incrementUsageCount(id: string) {
   try {
-    // Get the current user using AuthService
-    const { user, error: authError } = await AuthService.getCurrentUser();
-    if (authError || !user) {
-      throw new Error(authError || 'Not authenticated');
+    const supabase = SupabaseService.createServiceClient();
+
+    const { error } = await supabase.rpc('increment_template_usage', {
+      template_id: id
+    })
+
+    if (error) {
+      throw error
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
-
-    // Verify user has access to the template's team
-    const { data: template, error: templateError } = await supabase
-      .from('response_templates')
-      .select('team_id')
-      .eq('id', id)
-      .single();
-
-    if (templateError || !template) {
-      throw new Error('Template not found');
-    }
-
-    const { data: teamMember, error: teamError } = await supabase
-      .from('team_members')
-      .select()
-      .eq('team_id', template.team_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (teamError || !teamMember) {
-      throw new Error('You do not have access to use this template');
-    }
-
-    const { data: updatedTemplate, error } = await supabase
-      .rpc('increment_template_usage', { template_id: id })
-      .single()
-
-    if (error) throw error
-
-    return { template: updatedTemplate, error: null }
+    return { success: true }
   } catch (error) {
     console.error('Error incrementing template usage count:', error)
-    return { template: null, error: error instanceof Error ? error.message : 'Failed to increment usage count' }
+    return { error: error instanceof Error ? error.message : 'Failed to increment usage count' }
   }
 } 

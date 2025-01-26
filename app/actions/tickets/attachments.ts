@@ -30,7 +30,7 @@ export async function getMessageAttachmentsAction(messageId: string) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
     const { data: attachments, error } = await supabase
       .from('message_attachments')
@@ -88,10 +88,10 @@ export async function uploadAttachmentAction(messageId: string, file: File) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const serviceClient = await SupabaseService.createServiceClient();
+    const supabase = SupabaseService.createServiceClient();
 
     // Get the ticket ID for the message to use in storage path
-    const { data: message, error: messageError } = await serviceClient
+    const { data: message, error: messageError } = await supabase
       .from('ticket_messages')
       .select('ticket_id')
       .eq('id', messageId)
@@ -105,7 +105,7 @@ export async function uploadAttachmentAction(messageId: string, file: File) {
     const storagePath = `${message.ticket_id}/${messageId}/${uniqueFilename}`;
 
     // Check if file already exists
-    const { data: existingFiles } = await serviceClient.storage
+    const { data: existingFiles } = await supabase.storage
       .from('ticket-attachments')
       .list(`${message.ticket_id}/${messageId}`);
 
@@ -115,7 +115,7 @@ export async function uploadAttachmentAction(messageId: string, file: File) {
     }
 
     // Upload file to Supabase Storage
-    const { error: uploadError } = await serviceClient.storage
+    const { error: uploadError } = await supabase.storage
       .from('ticket-attachments')
       .upload(storagePath, file, {
         upsert: false // Prevent overwriting
@@ -124,7 +124,7 @@ export async function uploadAttachmentAction(messageId: string, file: File) {
     if (uploadError) throw uploadError;
 
     // Create attachment record
-    const { error: attachmentError } = await serviceClient
+    const { error: attachmentError } = await supabase
       .from('message_attachments')
       .insert({
         message_id: messageId,
@@ -150,7 +150,7 @@ export async function getAttachmentUrlAction(storagePath: string) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
 
     // Create a signed URL that expires in 1 hour
     const { data, error } = await supabase.storage
@@ -179,10 +179,10 @@ export async function deleteAttachmentAction(attachmentId: string) {
       throw new Error('Unauthorized: Only admins and agents can delete attachments');
     }
 
-    const serviceClient = await SupabaseService.createServiceClient();
+    const supabase = SupabaseService.createServiceClient();
 
     // Get the attachment details first
-    const { data: attachment, error: fetchError } = await serviceClient
+    const { data: attachment, error: fetchError } = await supabase
       .from('message_attachments')
       .select('storage_path')
       .eq('id', attachmentId)
@@ -191,14 +191,14 @@ export async function deleteAttachmentAction(attachmentId: string) {
     if (fetchError) throw fetchError;
 
     // Delete from storage
-    const { error: storageError } = await serviceClient.storage
+    const { error: storageError } = await supabase.storage
       .from('ticket-attachments')
       .remove([attachment.storage_path]);
 
     if (storageError) throw storageError;
 
     // Delete the record
-    const { error: deleteError } = await serviceClient
+    const { error: deleteError } = await supabase
       .from('message_attachments')
       .delete()
       .eq('id', attachmentId);
@@ -214,7 +214,7 @@ export async function deleteAttachmentAction(attachmentId: string) {
 
 export async function getTicketAttachmentsAction(ticketId: string): Promise<{ attachments: Attachment[]; error: string | null }> {
   try {
-    const supabase = await SupabaseService.createClientWithCookies();
+    const supabase = SupabaseService.createServiceClient();
     const { data, error } = await supabase
       .from('message_attachments')
       .select(`
@@ -267,6 +267,6 @@ export async function getTicketAttachmentsAction(ticketId: string): Promise<{ at
 }
 
 export async function unsubscribeFromMessages(channel: any) {
-  const supabase = await SupabaseService.createClientWithCookies();
+  const supabase = SupabaseService.createServiceClient();
   await supabase.removeChannel(channel);
 } 
