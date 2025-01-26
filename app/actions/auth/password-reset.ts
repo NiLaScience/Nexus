@@ -1,9 +1,12 @@
 'use server';
 
 import { encodedRedirect } from "@/utils/utils";
-import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { SupabaseService } from "@/services/supabase";
+import { FormService } from "@/services/form";
+import { forgotPasswordSchema, resetPasswordSchema } from "./schemas";
+import type { ForgotPasswordInput, ResetPasswordInput } from "./schemas";
 
 /**
  * Send a password reset email to the user
@@ -11,37 +14,40 @@ import { redirect } from "next/navigation";
  * @returns Redirect response with success/error message
  */
 export async function forgotPasswordAction(formData: FormData) {
-  const email = formData.get("email")?.toString();
-  const supabase = await createClient();
   const origin = (await headers()).get("origin");
-  const callbackUrl = formData.get("callbackUrl")?.toString();
 
-  if (!email) {
-    return encodedRedirect("error", "/forgot-password", "Email is required");
-  }
+  return FormService.handleSubmission({
+    formData,
+    schema: forgotPasswordSchema,
+    onError: (errors) => {
+      return encodedRedirect("error", "/forgot-password", errors[0].message);
+    },
+    onSuccess: async (data: ForgotPasswordInput) => {
+      const supabase = await SupabaseService.createAnonymousClientWithCookies();
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?redirect_to=/reset-password`,
+      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+        redirectTo: `${origin}/auth/callback?redirect_to=/reset-password`,
+      });
+
+      if (error) {
+        return encodedRedirect(
+          "error",
+          "/forgot-password",
+          "Could not reset password"
+        );
+      }
+
+      if (data.callbackUrl) {
+        return redirect(data.callbackUrl);
+      }
+
+      return encodedRedirect(
+        "success",
+        "/forgot-password",
+        "Check your email for a link to reset your password."
+      );
+    }
   });
-
-  if (error) {
-    console.error(error.message);
-    return encodedRedirect(
-      "error",
-      "/forgot-password",
-      "Could not reset password",
-    );
-  }
-
-  if (callbackUrl) {
-    return redirect(callbackUrl);
-  }
-
-  return encodedRedirect(
-    "success",
-    "/forgot-password",
-    "Check your email for a link to reset your password.",
-  );
 }
 
 /**
@@ -50,38 +56,28 @@ export async function forgotPasswordAction(formData: FormData) {
  * @returns Redirect response with success/error message
  */
 export async function resetPasswordAction(formData: FormData) {
-  const supabase = await createClient();
+  return FormService.handleSubmission({
+    formData,
+    schema: resetPasswordSchema,
+    onError: (errors) => {
+      return encodedRedirect("error", "/reset-password", errors[0].message);
+    },
+    onSuccess: async (data: ResetPasswordInput) => {
+      const supabase = await SupabaseService.createAnonymousClientWithCookies();
 
-  const password = formData.get("password") as string;
-  const confirmPassword = formData.get("confirmPassword") as string;
+      const { error } = await supabase.auth.updateUser({
+        password: data.password,
+      });
 
-  if (!password || !confirmPassword) {
-    return encodedRedirect(
-      "error",
-      "/reset-password",
-      "Password and confirm password are required",
-    );
-  }
+      if (error) {
+        return encodedRedirect(
+          "error",
+          "/reset-password",
+          "Password update failed"
+        );
+      }
 
-  if (password !== confirmPassword) {
-    return encodedRedirect(
-      "error",
-      "/reset-password",
-      "Passwords do not match",
-    );
-  }
-
-  const { error } = await supabase.auth.updateUser({
-    password: password,
+      return encodedRedirect("success", "/sign-in", "Password updated successfully");
+    }
   });
-
-  if (error) {
-    return encodedRedirect(
-      "error",
-      "/reset-password",
-      "Password update failed",
-    );
-  }
-
-  return encodedRedirect("success", "/sign-in", "Password updated successfully");
 } 

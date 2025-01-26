@@ -1,16 +1,19 @@
 import { FormMessage, Message } from "@/components/form-message";
 import { SmtpMessage } from "../smtp-message";
 import { SignUpForm } from "./sign-up-form";
+import { withGuestOnly } from "@/components/auth/with-guest-only";
 
-export default async function Signup(props: {
+interface SignupProps {
   searchParams: Promise<Message>;
-}) {
-  const searchParams = await props.searchParams;
+}
 
-  if ("message" in searchParams) {
+async function Signup({ searchParams }: SignupProps) {
+  const message = await searchParams;
+
+  if ("message" in message) {
     return (
       <div className="w-full space-y-4">
-        <FormMessage message={searchParams} />
+        <FormMessage message={message} />
       </div>
     );
   }
@@ -22,3 +25,5 @@ export default async function Signup(props: {
     </>
   );
 }
+
+export default withGuestOnly(Signup);

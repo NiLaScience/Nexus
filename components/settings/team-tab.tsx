@@ -11,12 +11,13 @@ import {
 import { getTeamMembersAction } from "@/app/actions/team.server";
 import { updateUserActiveStatusAction, getProfileAction } from "@/app/actions/profile";
 import { toast } from "sonner";
+import type { TeamMember } from "@/types/team";
 
 export function TeamTab() {
-  const [members, setMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<TeamMember | null>(null);
 
   async function fetchMembers() {
     try {
@@ -88,10 +89,9 @@ export function TeamTab() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-lg font-medium">Organization Members</h2>
-          {members.length > 0 && members[0].organization && (
+          {members.length > 0 && members[0].organization_id && (
             <p className="text-sm text-muted-foreground mt-1">
-              Organization: {members[0].organization.name}
-              {members[0].organization.domain && ` (${members[0].organization.domain})`}
+              Organization ID: {members[0].organization_id}
             </p>
           )}
         </div>

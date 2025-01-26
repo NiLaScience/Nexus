@@ -32,3 +32,57 @@ Note to self: Stop trying random type combinations when stuck! Instead:
 1. Check working examples in codebase
 2. Look for patterns in auth/core pages
 3. Read error messages carefully - they often tell you exactly what's wrong
+
+## Service Pattern Learnings
+
+1. **Centralization Benefits**
+   - Moving shared logic into dedicated services improves maintainability
+   - Services act as a single source of truth for related operations
+   - Easier to track and fix bugs when logic is centralized
+   - Reduces duplicate code across components
+
+2. **Type Safety Approach**
+   - Define interfaces for both inputs and outputs of operations
+   - Split complex types into smaller, reusable interfaces
+   - Use type-safe database queries to catch errors early
+   - Let TypeScript guide the implementation
+
+3. **Security Best Practices**
+   - Use RLS policies for data access control
+   - Service client for privileged operations
+   - Clear separation between public and admin operations
+   - Proper cleanup to prevent resource leaks
+
+4. **Performance & Scalability**
+   - Implement deduplication where needed
+   - Structure database queries for efficiency
+   - Use proper joins instead of multiple queries
+   - Handle errors at appropriate levels
+
+5. **Code Organization**
+   - Group related functionality in services
+   - Keep components focused on UI/UX
+   - Move business logic to services
+   - Use server actions as thin wrappers around services
+
+## Attachment Handling Learnings
+
+1. **Service Pattern Benefits**
+   - Centralizing attachment logic in a service class improved maintainability
+   - Clear interfaces made the code more predictable and easier to use
+   - Consistent error handling across all operations
+
+2. **Type Safety Importance**
+   - Proper TypeScript interfaces for all operations reduced bugs
+   - Clear separation between upload options and results
+   - Type-safe database queries improved reliability
+
+3. **Security Considerations**
+   - Supabase RLS policies are essential for attachment security
+   - Service client needed for privileged operations
+   - Proper cleanup prevents storage leaks
+
+4. **Performance Patterns**
+   - File deduplication through unique filenames
+   - Efficient database queries with proper joins
+   - Proper error handling prevents resource leaks

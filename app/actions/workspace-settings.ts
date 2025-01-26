@@ -1,12 +1,13 @@
 'use server';
 
-import { createClient } from '@/utils/supabase/server';
+import { SupabaseService } from '@/services/supabase';
+import { AuthService } from '@/services/auth';
 import type { TicketStatus, WorkspaceSettings } from '@/types/workspace-settings';
 import type { CustomField } from '@/types/custom-fields';
 import { DEFAULT_WORKSPACE_ID } from '@/types/custom-fields';
 
 export async function getWorkspaceSettings(): Promise<WorkspaceSettings | null> {
-  const supabase = await createClient();
+  const supabase = await SupabaseService.createClientWithCookies();
 
   const { data: settings, error } = await supabase
     .from('workspace_settings')
@@ -23,7 +24,17 @@ export async function getWorkspaceSettings(): Promise<WorkspaceSettings | null> 
 }
 
 export async function updateTicketStatuses(statuses: TicketStatus[]) {
-  const supabase = await createClient();
+  const { user } = await AuthService.getCurrentUser();
+  if (!user) {
+    throw new Error('Unauthorized: User not authenticated');
+  }
+
+  const isAdmin = await AuthService.hasRole('admin');
+  if (!isAdmin) {
+    throw new Error('Unauthorized: Only admins can update ticket statuses');
+  }
+
+  const supabase = await SupabaseService.createClientWithCookies();
 
   const { error } = await supabase
     .from('workspace_settings')
@@ -37,7 +48,17 @@ export async function updateTicketStatuses(statuses: TicketStatus[]) {
 }
 
 export async function updateTicketFields(fields: CustomField[]) {
-  const supabase = await createClient();
+  const { user } = await AuthService.getCurrentUser();
+  if (!user) {
+    throw new Error('Unauthorized: User not authenticated');
+  }
+
+  const isAdmin = await AuthService.hasRole('admin');
+  if (!isAdmin) {
+    throw new Error('Unauthorized: Only admins can update ticket fields');
+  }
+
+  const supabase = await SupabaseService.createClientWithCookies();
 
   const { error } = await supabase
     .from('workspace_settings')

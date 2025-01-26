@@ -1,6 +1,7 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
+import { SupabaseService } from "@/services/supabase";
+import { AuthService } from "@/services/auth";
 import { revalidatePath } from "next/cache";
 
 export type Skill = {
@@ -16,7 +17,12 @@ export type AgentSkill = {
 
 export async function getSkillsAction() {
   try {
-    const supabase = await createClient();
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
 
     const { data: skills, error } = await supabase
       .from("skills")
@@ -34,7 +40,17 @@ export async function getSkillsAction() {
 
 export async function getAgentSkillsAction(userId: string) {
   try {
-    const supabase = await createClient();
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    // Only allow admins or the user themselves to view their skills
+    if (user.profile.role !== 'admin' && user.id !== userId) {
+      throw new Error('Unauthorized: Cannot view other users\' skills');
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
 
     const { data: agentSkills, error } = await supabase
       .from("agent_skills")
@@ -55,7 +71,17 @@ export async function getAgentSkillsAction(userId: string) {
 
 export async function addSkillAction(data: { name: string; description?: string }) {
   try {
-    const supabase = await createClient();
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    // Only admins can add skills
+    if (user.profile.role !== 'admin') {
+      throw new Error('Unauthorized: Only admins can add skills');
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
 
     const { data: skill, error } = await supabase
       .from("skills")
@@ -82,7 +108,17 @@ export async function addAgentSkillAction(data: {
   proficiencyLevel: 'beginner' | 'intermediate' | 'expert';
 }) {
   try {
-    const supabase = await createClient();
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    // Only admins or the user themselves can add their skills
+    if (user.profile.role !== 'admin' && user.id !== data.userId) {
+      throw new Error('Unauthorized: Cannot add skills for other users');
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
 
     const { error } = await supabase
       .from("agent_skills")
@@ -104,7 +140,17 @@ export async function addAgentSkillAction(data: {
 
 export async function removeAgentSkillAction(data: { userId: string; skillId: string }) {
   try {
-    const supabase = await createClient();
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    // Only admins or the user themselves can remove their skills
+    if (user.profile.role !== 'admin' && user.id !== data.userId) {
+      throw new Error('Unauthorized: Cannot remove skills for other users');
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
 
     const { error } = await supabase
       .from("agent_skills")
@@ -128,7 +174,17 @@ export async function updateAgentSkillAction(data: {
   proficiencyLevel: 'beginner' | 'intermediate' | 'expert';
 }) {
   try {
-    const supabase = await createClient();
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    // Only admins or the user themselves can update their skills
+    if (user.profile.role !== 'admin' && user.id !== data.userId) {
+      throw new Error('Unauthorized: Cannot update skills for other users');
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
 
     const { error } = await supabase
       .from("agent_skills")

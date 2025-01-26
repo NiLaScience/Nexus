@@ -1,6 +1,7 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
+import { SupabaseService } from "@/services/supabase";
+import { AuthService } from "@/services/auth";
 import { revalidatePath } from "next/cache";
 
 export async function updateTicketAction(
@@ -14,23 +15,12 @@ export async function updateTicketAction(
   }
 ) {
   try {
-    const supabase = await createClient();
+    const supabase = await SupabaseService.createClientWithCookies();
 
     // Get the current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError) throw userError;
-    if (!user) throw new Error("Not authenticated");
-
-    // Get user's profile to get organization_id
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('organization_id, role')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || !profile.organization_id) {
-      console.error('Profile error:', profileError);
-      throw new Error('User profile or organization not found');
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
     }
 
     // If updating custom fields, validate them against workspace settings
@@ -39,7 +29,7 @@ export async function updateTicketAction(
       const { data: settings, error: settingsError } = await supabase
         .from('workspace_settings')
         .select('ticket_fields')
-        .eq('organization_id', profile.organization_id)
+        .eq('organization_id', user.profile.organization_id)
         .single();
 
       if (settingsError) {
@@ -125,7 +115,7 @@ export async function updateTicketAction(
 
 export async function getAgentsAction() {
   try {
-    const supabase = await createClient();
+    const supabase = await SupabaseService.createClientWithCookies();
 
     const { data: agents, error } = await supabase
       .from("profiles")
@@ -153,7 +143,7 @@ export type TicketFilters = {
 
 export async function updateTicketTagsAction(ticketId: string, tags: string[]) {
   try {
-    const supabase = await createClient();
+    const supabase = await SupabaseService.createClientWithCookies();
 
     // First, delete existing tags
     const { error: deleteError } = await supabase
@@ -223,7 +213,7 @@ export async function updateTicketTagsAction(ticketId: string, tags: string[]) {
  */
 export async function getAvailableTagsAction() {
   try {
-    const supabase = await createClient();
+    const supabase = await SupabaseService.createClientWithCookies();
     const { data: tags, error } = await supabase
       .from('tags')
       .select('id, name')

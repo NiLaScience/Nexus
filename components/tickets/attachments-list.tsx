@@ -13,7 +13,7 @@ import { getAttachmentUrlAction, getTicketAttachmentsAction } from "@/app/action
 import { useToast } from "@/components/ui/use-toast";
 import { useEffect, useState, useCallback } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { createClient } from "@/utils/supabase/client";
+import { RealtimeService } from "@/services/realtime";
 
 interface AttachmentsListProps {
   ticketId: string;
@@ -23,7 +23,6 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const supabase = createClient();
 
   const loadAttachments = useCallback(async () => {
     if (!ticketId) {
@@ -62,46 +61,22 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
     let reloadTimeout: NodeJS.Timeout;
 
     // Set up real-time subscription for both messages and attachments
-    const channel = supabase
-      .channel('attachments-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'ticket_messages',
-          filter: `ticket_id=eq.${ticketId}`
-        },
-        () => {
-          // Clear any existing timeout
-          if (reloadTimeout) clearTimeout(reloadTimeout);
-          // Set a new timeout to reload after a delay
-          reloadTimeout = setTimeout(loadAttachments, 500);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'message_attachments',
-          filter: `message_id=in.(select id from ticket_messages where ticket_id=${ticketId})`
-        },
-        () => {
-          // Clear any existing timeout
-          if (reloadTimeout) clearTimeout(reloadTimeout);
-          // Set a new timeout to reload after a delay
-          reloadTimeout = setTimeout(loadAttachments, 500);
-        }
-      )
-      .subscribe();
+    const unsubscribe = RealtimeService.subscribeToTicketAttachments(
+      ticketId,
+      () => {
+        // Clear any existing timeout
+        if (reloadTimeout) clearTimeout(reloadTimeout);
+        // Set a new timeout to reload after a delay
+        reloadTimeout = setTimeout(loadAttachments, 500);
+      }
+    );
 
     // Cleanup subscription and timeout
     return () => {
       if (reloadTimeout) clearTimeout(reloadTimeout);
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
-  }, [ticketId, supabase, loadAttachments]);
+  }, [ticketId, loadAttachments]);
 
   const handleDownload = async (attachment: Attachment) => {
     try {

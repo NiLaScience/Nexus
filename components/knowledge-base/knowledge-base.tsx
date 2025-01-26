@@ -5,24 +5,22 @@ import { ArticleList } from "./article-list";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { createClient } from '@/lib/supabase/server';
+import { AuthService } from '@/services/auth';
 import { CategoryDialog } from './category-dialog';
 
 export async function KnowledgeBase() {
-  const [articles, categories, { data: { user } }] = await Promise.all([
+  const { user, error: authError } = await AuthService.getCurrentUser();
+  if (authError) {
+    console.error('Error getting current user:', authError);
+    return null;
+  }
+
+  const [articles, categories] = await Promise.all([
     getArticles(),
     getCategories(),
-    (await createClient()).auth.getUser(),
   ]);
 
-  // Get user's role from profile
-  const { data: profile } = await (await createClient())
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id)
-    .single();
-
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = user?.profile?.role === 'admin';
 
   return (
     <div className="p-6">

@@ -1,11 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createArticle, updateArticle } from '@/app/actions/articles/articles.server';
+import { FormMessage } from '@/components/form-message';
+import { SubmitButton } from '@/components/submit-button';
+import { useToast } from '@/components/ui/use-toast';
+import { FormService } from '@/services/form';
+import { articleSchema } from '@/app/actions/articles/schemas';
+import type { ArticleInput } from '@/app/actions/articles/schemas';
 import dynamic from 'next/dynamic';
 
 const MDEditor = dynamic(
@@ -31,35 +37,52 @@ interface ArticleEditorProps {
 
 export function ArticleEditor({ categories, article, workspaceId }: ArticleEditorProps) {
   const router = useRouter();
-  const [title, setTitle] = useState(article?.title || '');
-  const [content, setContent] = useState(article?.content || '');
-  const [categoryId, setCategoryId] = useState(article?.category_id || categories[0]?.id || '');
+  const { toast } = useToast();
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formState, setFormState] = useState<ArticleInput>({
+    title: article?.title || '',
+    content: article?.content || '',
+    category_id: article?.category_id || categories[0]?.id || '',
+    workspace_id: workspaceId,
+  });
 
-  // If no category is selected and categories are available, select the first one
-  useEffect(() => {
-    if (!categoryId && categories.length > 0) {
-      setCategoryId(categories[0].id);
-    }
-  }, [categories, categoryId]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
 
-    const formData = new FormData();
-    formData.append('title', title);
-    formData.append('content', content);
-    formData.append('category_id', categoryId);
+    try {
+      const result = await FormService.handleSubmission({
+        formData,
+        schema: articleSchema,
+        onSuccess: async (data) => {
+          if (article) {
+            await updateArticle(article.id, formData);
+            toast({
+              title: 'Success',
+              description: 'Article updated successfully',
+            });
+          } else {
+            await createArticle(formData);
+            toast({
+              title: 'Success',
+              description: 'Article created successfully',
+            });
+          }
+        },
+        onError: (errors) => {
+          setFormError(errors[0]?.message || 'Form validation failed');
+        },
+      });
 
-    if (article) {
-      await updateArticle(article.id, formData);
-    } else {
-      formData.append('workspace_id', workspaceId);
-      await createArticle(formData);
+      if (result.success) {
+        router.push('/knowledge-base');
+        router.refresh();
+      }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to save article');
     }
-
-    router.push('/knowledge-base');
-    router.refresh();
-  };
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -70,9 +93,15 @@ export function ArticleEditor({ categories, article, workspaceId }: ArticleEdito
           </label>
           <Input
             id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            name="title"
+            value={formState.title}
+            onChange={(e) => {
+              setFormState(prev => ({ ...prev, title: e.target.value }));
+              setFormError(null);
+            }}
             required
+            minLength={3}
+            maxLength={100}
           />
         </div>
 
@@ -81,8 +110,12 @@ export function ArticleEditor({ categories, article, workspaceId }: ArticleEdito
             Category
           </label>
           <Select
-            value={categoryId}
-            onValueChange={setCategoryId}
+            name="category_id"
+            value={formState.category_id}
+            onValueChange={(value) => {
+              setFormState(prev => ({ ...prev, category_id: value }));
+              setFormError(null);
+            }}
             required
           >
             <SelectTrigger>
@@ -104,15 +137,26 @@ export function ArticleEditor({ categories, article, workspaceId }: ArticleEdito
           </label>
           <div data-color-mode="dark">
             <MDEditor
-              value={content}
-              onChange={(value) => setContent(value || '')}
+              value={formState.content}
+              onChange={(value) => {
+                setFormState(prev => ({ ...prev, content: value || '' }));
+                setFormError(null);
+              }}
               preview="edit"
               height={400}
               className="dark:bg-background"
+              textareaProps={{
+                name: 'content',
+                required: true,
+                minLength: 10,
+                maxLength: 10000,
+              }}
             />
           </div>
         </div>
       </div>
+
+      {formError && <FormMessage message={{ error: formError }} />}
 
       <div className="flex justify-end gap-4">
         <Button
@@ -122,9 +166,9 @@ export function ArticleEditor({ categories, article, workspaceId }: ArticleEdito
         >
           Cancel
         </Button>
-        <Button type="submit">
+        <SubmitButton>
           {article ? 'Update Article' : 'Create Article'}
-        </Button>
+        </SubmitButton>
       </div>
     </form>
   );

@@ -9,7 +9,7 @@ import { Chatbot } from "@/components/chat/chatbot";
 import { Toaster } from "@/components/ui/toaster";
 import { NotificationsDropdown } from "@/components/ui/notifications-dropdown";
 import "./globals.css";
-import { createClient } from "@/utils/supabase/server";
+import { AuthService } from "@/services/auth";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -31,15 +31,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id)
-    .single();
-
-  const isCustomer = profile?.role === 'customer';
+  const session = await AuthService.getCurrentUser();
+  const isCustomer = session.user?.profile?.role === 'customer';
 
   return (
     <html lang="en" className={geistSans.className} suppressHydrationWarning>

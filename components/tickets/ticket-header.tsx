@@ -28,12 +28,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { updateTicketAction, getAgentsAction, updateTicketTagsAction } from "@/app/actions/tickets.server";
+import { getAgentsAction, updateTicketTagsAction } from "@/app/actions/tickets.server";
+import { assignTicketAction } from "@/app/actions/tickets/assign.server";
 import { useToast } from "@/components/ui/use-toast";
-import { createClient } from "@/utils/supabase/client";
+import { AuthService } from "@/services/auth";
 import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
 import type { TicketStatus as WorkspaceTicketStatus } from "@/types/workspace-settings";
-import { getProfileAction } from "@/app/actions/profile";
+import { updateTicketStatusAction, updateTicketPriorityAction } from "@/app/actions/tickets/update.server";
 
 interface Agent {
   id: string;
@@ -66,55 +67,55 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
   const [tagInput, setTagInput] = useState("");
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const supabase = createClient();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+    const initializeComponent = async () => {
+      try {
+        // Get current user and check auth
+        const { user, error } = await AuthService.getCurrentUser();
+        if (error || !user?.profile) {
+          toast({
+            title: "Error",
+            description: "You must be logged in to perform this action",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Set user role
+        setUserRole(user.profile.role);
+
+        // Load agents if user is not a customer
+        if (user.profile.role !== 'customer') {
+          const { agents: agentList, error: agentsError } = await getAgentsAction();
+          if (agentsError) {
+            toast({
+              title: "Error",
+              description: "Failed to load agents",
+              variant: "destructive",
+            });
+          } else if (agentList) {
+            setAgents(agentList);
+          }
+        }
+
+        // Load workspace settings
+        const settings = await getWorkspaceSettings();
+        if (settings?.ticket_statuses) {
+          setWorkspaceStatuses(settings.ticket_statuses);
+        }
+      } catch (error) {
+        console.error('Error initializing component:', error);
         toast({
           title: "Error",
-          description: "You must be logged in to perform this action",
+          description: "Failed to initialize ticket header",
           variant: "destructive",
         });
       }
     };
-    checkAuth();
-  }, [supabase.auth, toast]);
 
-  useEffect(() => {
-    async function loadAgents() {
-      const { agents, error } = await getAgentsAction();
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to load agents",
-          variant: "destructive",
-        });
-      } else if (agents) {
-        setAgents(agents);
-      }
-    }
-    loadAgents();
+    initializeComponent();
   }, [toast]);
-
-  useEffect(() => {
-    async function loadWorkspaceSettings() {
-      const settings = await getWorkspaceSettings();
-      if (settings?.ticket_statuses) {
-        setWorkspaceStatuses(settings.ticket_statuses);
-      }
-    }
-    loadWorkspaceSettings();
-  }, []);
-
-  useEffect(() => {
-    const loadProfile = async () => {
-      const { profile } = await getProfileAction();
-      setUserRole(profile?.role || null);
-    };
-    loadProfile();
-  }, []);
 
   const getStatusDisplay = (statusName: string) => {
     const status = workspaceStatuses.find(s => s.name === statusName);
@@ -135,14 +136,16 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
     if (!pendingStatus) return;
     
     setIsLoading(true);
-    const result = await updateTicketAction(ticketId, {
-      status: pendingStatus as "open" | "in_progress" | "resolved" | "closed"
-    });
+    const formData = new FormData();
+    formData.append('ticketId', ticketId);
+    formData.append('status', pendingStatus);
+
+    const result = await updateTicketStatusAction(formData);
     setIsLoading(false);
     setShowStatusDialog(false);
     setPendingStatus(null);
 
-    if (result.error) {
+    if ('error' in result) {
       toast({
         title: "Error",
         description: result.error,
@@ -165,14 +168,16 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
     if (!pendingPriority) return;
     
     setIsLoading(true);
-    const result = await updateTicketAction(ticketId, {
-      priority: pendingPriority as "low" | "medium" | "high" | "urgent"
-    });
+    const formData = new FormData();
+    formData.append('ticketId', ticketId);
+    formData.append('priority', pendingPriority);
+
+    const result = await updateTicketPriorityAction(formData);
     setIsLoading(false);
     setShowPriorityDialog(false);
     setPendingPriority(null);
 
-    if (result.error) {
+    if ('error' in result) {
       toast({
         title: "Error",
         description: result.error,
@@ -201,14 +206,17 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
     if (!pendingAgent) return;
 
     setIsLoading(true);
-    const result = await updateTicketAction(ticketId, {
-      assigned_to: pendingAgent.id // Remove the || null since we want to assign
-    });
+    const formData = new FormData();
+    formData.append('ticketId', ticketId);
+    formData.append('assignedTo', pendingAgent.id);
+    formData.append('teamId', ''); // We'll add team assignment later
+
+    const result = await assignTicketAction(formData);
     setIsLoading(false);
     setShowAssignDialog(false);
     setPendingAgent(null);
 
-    if (result.error) {
+    if ('error' in result) {
       toast({
         title: "Error",
         description: result.error,
@@ -239,15 +247,11 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
         setTags(newTags);
         setTagInput("");
         setIsEditingTags(false);
-        toast({
-          title: "Success",
-          description: "Tag added successfully",
-        });
       }
     }
   };
 
-  const removeTag = async (tagToRemove: string) => {
+  const handleRemoveTag = async (tagToRemove: string) => {
     const newTags = tags.filter(tag => tag !== tagToRemove);
     setIsLoading(true);
     const result = await updateTicketTagsAction(ticketId, newTags);
@@ -261,10 +265,6 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
       });
     } else {
       setTags(newTags);
-      toast({
-        title: "Success",
-        description: "Tag removed successfully",
-      });
     }
   };
 
@@ -285,267 +285,188 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
   const isCustomer = userRole === 'customer';
 
   return (
-    <>
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-4">
-          <Link href="/tickets">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
+    <div className="flex flex-col gap-4 p-4 border-b">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Link href="/tickets" className="hover:opacity-70">
+            <ArrowLeft className="w-5 h-5" />
           </Link>
-          <h1 className="text-2xl font-semibold">{title}</h1>
+          <h1 className="text-xl font-semibold">{title}</h1>
         </div>
-
-        <div className="flex justify-between items-start">
-          <div>
-            <span className="text-muted-foreground">Created on {format(new Date(created), "MMMM d, yyyy 'at' h:mm a")}</span>
-            <div className="space-y-2">
-              <div className="flex gap-2 mt-2">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="bg-muted text-muted-foreground px-2 py-1 rounded text-xs flex items-center gap-1"
-                  >
-                    {tag}
-                    {!isCustomer && (
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag)}
-                        className="hover:text-foreground"
-                        disabled={isLoading}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                  </span>
-                ))}
-                {!isCustomer && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6"
-                    onClick={() => setIsEditingTags(!isEditingTags)}
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-              {isEditingTags && !isCustomer && (
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Add tag"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddTag();
-                      }
-                    }}
-                    className="h-8"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAddTag}
-                    disabled={isLoading}
-                  >
-                    Add
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {isCustomer ? (
-              <>
-                <div className="w-[180px] h-9 flex items-center px-3 bg-muted rounded-md text-sm">
-                  <UserPlus className="w-4 h-4 mr-2 text-muted-foreground" />
-                  <span className="truncate text-muted-foreground">
-                    {assignedTo ? `${assignedTo.full_name} (${assignedTo.role})` : 'Unassigned'}
-                  </span>
-                </div>
-                <div className="w-[180px] h-9 flex items-center px-3 bg-muted rounded-md text-sm">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(priority)}`}>
-                    {priority.charAt(0).toUpperCase() + priority.slice(1)}
-                  </span>
-                </div>
-                <div className="w-[180px] h-9 flex items-center px-3 bg-muted rounded-md text-sm">
-                  <span 
-                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                    style={{ 
-                      color: getStatusColor(status),
-                      backgroundColor: `${getStatusColor(status)}10`
-                    }}
-                  >
-                    {getStatusDisplay(status)}
-                  </span>
-                </div>
-              </>
-            ) : (
-              <>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={isLoading} className="w-[180px] h-9 justify-start">
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      <span className="truncate">
-                        {assignedTo ? `${assignedTo.full_name} (${assignedTo.role})` : 'Unassigned'}
-                      </span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[180px]">
-                    <div className="space-y-2">
-                      <h4 className="font-medium px-2 py-1.5 text-sm text-muted-foreground">Assign To</h4>
-                      <Select onValueChange={handleAssignment}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select agent" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {agents.map((agent) => (
-                            <SelectItem key={agent.id} value={agent.id}>
-                              {agent.full_name || 'Unnamed'} ({agent.role})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-
-                <Select 
-                  defaultValue={priority} 
-                  value={priority}
-                  onValueChange={handlePriorityChange} 
-                  disabled={isLoading}
-                >
-                  <SelectTrigger className="w-[180px] h-9">
-                    <SelectValue placeholder="Priority">
-                      {priority && (
-                        <span 
-                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(priority)}`}
-                        >
-                          {priority.charAt(0).toUpperCase() + priority.slice(1)}
-                        </span>
-                      )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
-                      Set Priority
-                    </div>
-                    {["low", "medium", "high", "urgent"].map((p) => (
-                      <SelectItem 
-                        key={p} 
-                        value={p}
-                      >
-                        <span
-                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityClass(p)}`}
-                        >
-                          {p.charAt(0).toUpperCase() + p.slice(1)}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select 
-                  defaultValue={status} 
-                  value={status}
-                  onValueChange={handleStatusChange} 
-                  disabled={isLoading}
-                >
-                  <SelectTrigger className="w-[180px] h-9">
-                    <SelectValue placeholder="Status">
-                      {status && (
-                        <span 
-                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                          style={{ 
-                            color: getStatusColor(status),
-                            backgroundColor: `${getStatusColor(status)}10`
-                          }}
-                        >
-                          {getStatusDisplay(status)}
-                        </span>
-                      )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
-                      Set Status
-                    </div>
-                    {workspaceStatuses.map((statusOption) => (
-                      <SelectItem 
-                        key={statusOption.name} 
-                        value={statusOption.name}
-                      >
-                        <span
-                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                          style={{ 
-                            color: statusOption.color,
-                            backgroundColor: `${statusOption.color}10`
-                          }}
-                        >
-                          {statusOption.display}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </>
-            )}
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">
+            Created {format(new Date(created), "MMM d, yyyy")}
+          </span>
         </div>
       </div>
 
-      {!isCustomer && (
-        <>
-          <AlertDialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Change Ticket Status</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to change the ticket status to "{pendingStatus}"?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmStatusChange}>Continue</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={status} onValueChange={handleStatusChange}>
+          <SelectTrigger className="w-[130px]">
+            <SelectValue placeholder="Select status" />
+          </SelectTrigger>
+          <SelectContent>
+            {workspaceStatuses.map((status) => (
+              <SelectItem key={status.name} value={status.name}>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: status.color }}
+                  />
+                  {status.display}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-          <AlertDialog open={showPriorityDialog} onOpenChange={setShowPriorityDialog}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Change Ticket Priority</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to change the ticket priority to "{pendingPriority}"?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmPriorityChange}>Continue</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+        <Select value={priority} onValueChange={handlePriorityChange}>
+          <SelectTrigger className="w-[130px]">
+            <SelectValue placeholder="Select priority" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="low">Low</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+            <SelectItem value="urgent">Urgent</SelectItem>
+          </SelectContent>
+        </Select>
 
-          <AlertDialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Reassign Ticket</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to assign this ticket to {pendingAgent?.name}?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmAssignment}>Continue</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </>
-      )}
-    </>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              <UserPlus className="w-4 h-4" />
+              {assignedTo ? assignedTo.full_name : "Assign"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0" align="end">
+            <div className="flex flex-col">
+              {agents.map((agent) => (
+                <button
+                  key={agent.id}
+                  className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100"
+                  onClick={() => handleAssignment(agent.id)}
+                >
+                  {agent.full_name}
+                  <span className="text-xs text-gray-500">{agent.role}</span>
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {tags.map((tag) => (
+            <div
+              key={tag}
+              className="flex items-center gap-1 px-2 py-1 text-sm bg-gray-100 rounded-full"
+            >
+              {tag}
+              <button
+                onClick={() => handleRemoveTag(tag)}
+                className="hover:text-red-500"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+          {isEditingTags ? (
+            <div className="flex items-center gap-2">
+              <Input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                className="w-32 h-8"
+                placeholder="Add tag"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddTag();
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setIsEditingTags(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1"
+              onClick={() => setIsEditingTags(true)}
+            >
+              <PlusCircle className="w-4 h-4" />
+              Add Tag
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <AlertDialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change Status</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to change the status to{" "}
+              {pendingStatus && getStatusDisplay(pendingStatus)}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmStatusChange}
+              disabled={isLoading}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showPriorityDialog} onOpenChange={setShowPriorityDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change Priority</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to change the priority to {pendingPriority}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmPriorityChange}
+              disabled={isLoading}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Assign Ticket</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to assign this ticket to{" "}
+              {pendingAgent?.name}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmAssignment}
+              disabled={isLoading}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 } 

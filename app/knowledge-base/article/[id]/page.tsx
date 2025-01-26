@@ -4,7 +4,6 @@ import { ChevronLeft, Pencil, Trash } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
-import { createClient } from '@/lib/supabase/server';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,32 +17,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import { deleteArticle } from '@/app/actions/articles/articles.server';
 import { VoteButtons } from '@/components/knowledge-base/vote-buttons';
+import { withAuth } from '@/components/hoc/with-auth';
+import type { AuthUser } from '@/services/auth';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  user: AuthUser;
 }
 
-export default async function ArticlePage({ params }: PageProps) {
+async function ArticlePage({ params, user }: PageProps) {
   const resolvedParams = await params;
   const id = resolvedParams.id;
   
-  const [article, { data: { user } }] = await Promise.all([
-    getArticle(id).catch(() => null),
-    (await createClient()).auth.getUser(),
-  ]);
+  const article = await getArticle(id).catch(() => null);
 
   if (!article) {
     notFound();
   }
 
-  // Get user's role from profile
-  const { data: profile } = await (await createClient())
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id)
-    .single();
-
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = user.profile?.role === 'admin';
 
   async function handleDelete() {
     'use server';
@@ -139,11 +131,13 @@ export default async function ArticlePage({ params }: PageProps) {
               articleId={article.id}
               upvotes={article.upvote_count}
               downvotes={article.downvote_count}
-              userVote={article.userVote}
+              userVote={article.userVote || null}
             />
           </div>
         </div>
       </div>
     </div>
   );
-} 
+}
+
+export default withAuth(ArticlePage) 

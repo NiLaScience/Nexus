@@ -19,12 +19,16 @@ import { addMessageAction, getTicketMessagesAction } from "@/app/actions/tickets
 import { useToast } from "@/components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { uploadAttachmentAction, getAttachmentUrlAction } from "@/app/actions/tickets/attachments";
-import { createClient } from "@/utils/supabase/client";
+import { SupabaseService } from "@/services/supabase";
+import { AuthService } from "@/services/auth";
 import { listTemplates, type ResponseTemplate } from "@/app/actions/response-templates";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { incrementUsageCount } from "@/app/actions/response-templates";
 import ReactMarkdown from 'react-markdown';
 import dynamic from 'next/dynamic';
+import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+import { RealtimeService } from '@/services/realtime';
+import { getMessageWithAttachmentsAction } from '@/app/actions/tickets/messages.server';
 
 const MDEditor = dynamic(
   () => import('@uiw/react-md-editor').then((mod) => mod.default),
@@ -43,13 +47,41 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [templates, setTemplates] = useState<ResponseTemplate[]>([]);
   const [templateSearch, setTemplateSearch] = useState("");
+  const [userRole, setUserRole] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const supabase = createClient();
 
-  // Load templates
+  // Initialize user role
+  useEffect(() => {
+    const initializeUser = async () => {
+      try {
+        const { user, error } = await AuthService.getCurrentUser();
+        if (error || !user?.profile) {
+          toast({
+            title: "Error",
+            description: "You must be logged in to view messages",
+            variant: "destructive",
+          });
+          return;
+        }
+        setUserRole(user.profile.role);
+      } catch (error) {
+        console.error('Error initializing user:', error);
+        toast({
+          title: "Error",
+          description: "Failed to initialize user",
+          variant: "destructive",
+        });
+      }
+    };
+    initializeUser();
+  }, [toast]);
+
+  // Load templates only for agents and admins
   useEffect(() => {
     async function loadTemplates() {
+      if (!userRole || userRole === 'customer') return;
+
       try {
         const result = await listTemplates();
         if (result.error) {
@@ -67,7 +99,7 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
       }
     }
     loadTemplates();
-  }, [toast]);
+  }, [toast, userRole]);
 
   // Debug: Log initial messages when component mounts
   useEffect(() => {
@@ -97,122 +129,26 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
   useEffect(() => {
     // Initial load
     loadMessages();
+  }, [loadMessages]);
 
-    // Set up real-time subscription for messages
-    const channel = supabase
-      .channel('messages-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'ticket_messages',
-          filter: `ticket_id=eq.${ticketId} and is_internal=eq.false`
-        },
-        async (payload) => {
-          console.log("New message received:", payload);
-          // Fetch the complete message data including author details
-          const { data: completeMessage } = await supabase
-            .from('ticket_messages')
-            .select(`
-              id,
-              ticket_id,
-              content,
-              created_at,
-              is_internal,
-              source,
-              author:profiles!ticket_messages_author_id_fkey(id, full_name, role),
-              attachments:message_attachments(
-                id,
-                name,
-                size,
-                mime_type,
-                storage_path,
-                created_at
-              )
-            `)
-            .eq('id', payload.new.id)
-            .single();
+  useEffect(() => {
+    let channel: any;
 
-          if (completeMessage) {
-            console.log("Complete message data:", completeMessage);
-            // Add the new message to the list with full details
-            setMessages(prev => [...prev, completeMessage as unknown as TicketMessage]);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'ticket_messages',
-          filter: `ticket_id=eq.${ticketId} and is_internal=eq.false`
-        },
-        (payload) => {
-          console.log("Message updated:", payload);
-          const updatedMessage = payload.new as TicketMessage;
-          // Update the message in the list
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === updatedMessage.id ? updatedMessage : msg
-            )
-          );
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'message_attachments'
-        },
-        async (payload) => {
-          console.log("New attachment added:", payload);
-          const messageId = payload.new.message_id;
-          // Fetch the updated message with its attachments
-          const { data: updatedMessage } = await supabase
-            .from('ticket_messages')
-            .select(`
-              id,
-              ticket_id,
-              content,
-              created_at,
-              is_internal,
-              source,
-              author:profiles!ticket_messages_author_id_fkey(id, full_name, role),
-              attachments:message_attachments(
-                id,
-                name,
-                size,
-                mime_type,
-                storage_path,
-                created_at
-              )
-            `)
-            .eq('id', messageId)
-            .single();
-
-          if (updatedMessage) {
-            // Update the message in the list with new attachments
-            setMessages(prev => 
-              prev.map(msg => 
-                msg.id === messageId ? updatedMessage as unknown as TicketMessage : msg
-              )
-            );
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log("Message subscription status:", status);
+    const setupSubscription = async () => {
+      channel = await RealtimeService.subscribeToMessages(ticketId, async (payload) => {
+        const message = await getMessageWithAttachmentsAction(payload.new.id);
+        setMessages(prev => [...prev, message]);
       });
-
-    // Cleanup subscription
-    return () => {
-      console.log("Cleaning up message subscription");
-      supabase.removeChannel(channel);
     };
-  }, [ticketId, supabase, loadMessages]);
+
+    setupSubscription();
+
+    return () => {
+      if (channel) {
+        RealtimeService.unsubscribeFromMessages(channel);
+      }
+    };
+  }, [ticketId]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -237,66 +173,50 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
   };
 
   const handleSendMessage = async () => {
-    if ((!messageText.trim() && selectedFiles.length === 0) || isSending) return;
+    if (!messageText.trim() && selectedFiles.length === 0) return;
 
     try {
-      setIsSending(true);
-      const { message, error } = await addMessageAction({
-        ticketId,
-        content: messageText || 'Added attachments',
-        isInternal: false,
-      });
-
-      if (error || !message) {
-        throw new Error(error || "Failed to send message");
+      const { user, error: authError } = await AuthService.getCurrentUser();
+      if (authError || !user?.profile) {
+        toast({
+          title: "Error",
+          description: "You must be logged in to send messages",
+          variant: "destructive",
+        });
+        return;
       }
 
-      // Upload attachments if any
+      setIsSending(true);
+      const formData = new FormData();
+      formData.append('ticketId', ticketId);
+      formData.append('content', messageText);
+
+      const result = await addMessageAction(formData);
+      if (!result.result?.message) {
+        throw new Error('Failed to send message');
+      }
+
+      const message = result.result.message;
+
+      // Handle file uploads if any
       if (selectedFiles.length > 0) {
         for (const file of selectedFiles) {
-          const uploadResult = await uploadAttachmentAction(message.id, file);
-          if (uploadResult.error) {
+          const { error } = await uploadAttachmentAction(message.id, file);
+          if (error) {
             toast({
               title: "Warning",
-              description: `Failed to upload ${file.name}: ${uploadResult.error}`,
+              description: `Failed to upload ${file.name}`,
               variant: "destructive",
             });
           }
         }
-        
-        // Fetch the updated message with attachments
-        const { data: updatedMessage } = await supabase
-          .from('ticket_messages')
-          .select(`
-            id,
-            ticket_id,
-            content,
-            created_at,
-            is_internal,
-            source,
-            author:profiles!ticket_messages_author_id_fkey(id, full_name, role),
-            attachments:message_attachments(
-              id,
-              name,
-              size,
-              mime_type,
-              storage_path,
-              created_at
-            )
-          `)
-          .eq('id', message.id)
-          .single();
 
-        if (updatedMessage) {
-          // Update UI with message including attachments
-          setMessages([...messages, updatedMessage as unknown as TicketMessage]);
-        } else {
-          // Fallback to original message if fetch fails
-          setMessages([...messages, message]);
-        }
+        // Fetch the updated message with attachments
+        const updatedMessage = await getMessageWithAttachmentsAction(message.id);
+        setMessages(prev => [...prev, updatedMessage]);
       } else {
         // No attachments, use original message
-        setMessages([...messages, message]);
+        setMessages(prev => [...prev, message]);
       }
 
       setMessageText("");
@@ -369,35 +289,31 @@ export function MessageHistory({ ticketId, initialMessages = [] }: MessageHistor
                   {message.author?.full_name?.[0] ?? '?'}
                 </div>
                 <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="font-medium">{message.author?.full_name || 'Unknown'}</span>
-                      <span className="text-xs text-muted-foreground ml-2">{message.author?.role}</span>
-                    </div>
-                    <span className="text-muted-foreground text-sm">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium">{message.author?.full_name ?? 'Unknown'}</span>
+                    <span className="text-sm text-muted-foreground">
                       {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
                     </span>
+                    {message.is_internal && userRole !== 'customer' && (
+                      <span className="text-xs bg-yellow-200 text-yellow-800 px-1.5 py-0.5 rounded">Internal</span>
+                    )}
                   </div>
-                  <div className="prose prose-sm dark:prose-invert mt-2">
+                  <div className="prose prose-sm max-w-none">
                     <ReactMarkdown>{message.content}</ReactMarkdown>
                   </div>
                   {message.attachments && message.attachments.length > 0 && (
-                    <div className="mt-3 space-y-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       {message.attachments.map((attachment) => (
-                        <div
+                        <Button
                           key={attachment.id}
-                          className="flex items-center gap-2 p-2 rounded bg-muted/50"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => handleDownload(attachment)}
                         >
-                          <Paperclip className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-sm flex-1">{attachment.name}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDownload(attachment)}
-                          >
-                            Download
-                          </Button>
-                        </div>
+                          <Paperclip className="w-3 h-3 mr-1" />
+                          {attachment.name}
+                        </Button>
                       ))}
                     </div>
                   )}

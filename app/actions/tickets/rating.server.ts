@@ -1,6 +1,7 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
+import { SupabaseService } from "@/services/supabase";
+import { AuthService } from "@/services/auth";
 
 export type TicketRating = {
   id: string;
@@ -17,12 +18,13 @@ export async function addTicketRatingAction(
   comment?: string
 ) {
   try {
-    const supabase = await createClient();
+    // Get the current user using AuthService
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user) {
+      throw new Error(authError || "Not authenticated");
+    }
 
-    // Get the current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError) throw userError;
-    if (!user) throw new Error("Not authenticated");
+    const supabase = await SupabaseService.createClientWithCookies();
 
     // Verify the ticket is in resolved status
     const { data: ticket, error: ticketError } = await supabase
@@ -63,12 +65,13 @@ export async function addTicketRatingAction(
 
 export async function getTicketRatingAction(ticketId: string) {
   try {
-    const supabase = await createClient();
+    // Get the current user using AuthService
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || "Not authenticated");
+    }
 
-    // Get the current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError) throw userError;
-    if (!user) throw new Error("Not authenticated");
+    const supabase = await SupabaseService.createClientWithCookies();
 
     // Get the ticket to check if user has access
     const { data: ticket, error: ticketError } = await supabase
@@ -80,18 +83,8 @@ export async function getTicketRatingAction(ticketId: string) {
     if (ticketError) throw ticketError;
     if (!ticket) throw new Error("Ticket not found");
 
-    // Get user's role
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (profileError) throw profileError;
-    if (!profile) throw new Error("Profile not found");
-
     // Check if user has access (is customer or admin)
-    const hasAccess = user.id === ticket.customer_id || profile.role === 'admin';
+    const hasAccess = user.id === ticket.customer_id || user.profile.role === 'admin';
     if (!hasAccess) {
       throw new Error("You don't have permission to view this rating");
     }
@@ -120,7 +113,13 @@ export async function getTicketRatingAction(ticketId: string) {
 
 export async function getCustomerSatisfactionStatsAction() {
   try {
-    const supabase = await createClient();
+    // Only admins can view satisfaction stats
+    const isAdmin = await AuthService.isAdmin();
+    if (!isAdmin) {
+      throw new Error("Only admins can view satisfaction stats");
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
 
     // Get ratings distribution
     const { data: ratings, error } = await supabase

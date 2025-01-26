@@ -1,6 +1,7 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
+import { SupabaseService } from "@/services/supabase";
+import { AuthService } from "@/services/auth";
 
 export type TeamMember = {
   id: string;
@@ -31,22 +32,16 @@ interface TeamMemberWithUser {
 
 export async function getTeamMembersAction() {
   try {
-    const supabase = await createClient();
-    
-    // Get the current user and their profile
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    // Get the current user using AuthService
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || "Not authenticated");
+    }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile) throw new Error("Profile not found");
+    const supabase = await SupabaseService.createClientWithCookies();
 
     // For customers, get all members in their organization
-    if (profile.role === 'customer') {
+    if (user.profile.role === 'customer') {
       const { data: members, error } = await supabase
         .from('profiles')
         .select(`
@@ -61,7 +56,7 @@ export async function getTeamMembersAction() {
             domain
           )
         `)
-        .eq('organization_id', profile.organization_id)
+        .eq('organization_id', user.profile.organization_id)
         .order('full_name');
 
       if (error) throw error;
@@ -69,7 +64,7 @@ export async function getTeamMembersAction() {
     }
 
     // For agents and admins, first check if they are part of any teams
-    if (profile.role === 'agent' || profile.role === 'admin') {
+    if (user.profile.role === 'agent' || user.profile.role === 'admin') {
       const { data: members, error } = await supabase
         .from('team_members')
         .select(`
@@ -119,7 +114,7 @@ export async function getTeamMembersAction() {
       }
 
       // If agent is not part of any team, show organization members
-      if (profile.role === 'agent') {
+      if (user.profile.role === 'agent') {
         const { data: orgMembers, error: orgError } = await supabase
           .from('profiles')
           .select(`
@@ -129,7 +124,7 @@ export async function getTeamMembersAction() {
             role,
             is_active
           `)
-          .eq('organization_id', profile.organization_id)
+          .eq('organization_id', user.profile.organization_id)
           .order('full_name');
 
         if (orgError) throw orgError;
@@ -137,7 +132,7 @@ export async function getTeamMembersAction() {
       }
 
       // If admin is not part of any team, show all users
-      if (profile.role === 'admin') {
+      if (user.profile.role === 'admin') {
         const { data: allMembers, error: allError } = await supabase
           .from('profiles')
           .select(`

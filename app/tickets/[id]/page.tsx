@@ -6,26 +6,25 @@ import { RelatedTickets } from "@/components/tickets/related-tickets";
 import { AttachmentsList } from "@/components/tickets/attachments-list";
 import { TicketDetails } from "@/components/tickets/ticket-details";
 import { TicketRating } from "@/components/tickets/ticket-rating";
-import { createClient } from "@/utils/supabase/server";
+import { SupabaseService } from "@/services/supabase";
 import { getTicketMessagesAction, getInternalNotesAction } from "@/app/actions/tickets/messages.server";
 import { getTicketEventsAction } from "@/app/actions/tickets/events.server";
 import { getRelatedTicketsAction } from "@/app/actions/tickets/related.server";
-import { getProfileAction } from "@/app/actions/profile";
+import { withAuth } from "@/components/hoc/with-auth";
+import type { AuthUser } from "@/services/auth";
 import type { TicketTag } from "@/types/ticket";
 
 interface PageProps {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
+  user: AuthUser;
 }
 
-export default async function TicketPage({ params }: PageProps) {
+async function TicketPage({ params, user }: PageProps) {
   const { id } = await params;
-  const supabase = await createClient();
-
-  // Get the current user's profile
-  const { profile } = await getProfileAction();
-  const isCustomer = profile?.role === 'customer';
+  const isCustomer = user.profile?.role === 'customer';
 
   // Fetch ticket with related profiles and tags
+  const supabase = await SupabaseService.createClientWithCookies();
   const { data: ticket, error: ticketError } = await supabase
     .from('tickets')
     .select(`
@@ -79,7 +78,7 @@ export default async function TicketPage({ params }: PageProps) {
   }
 
   // Transform ticket tags into the expected format
-  const tags = ticket.ticket_tags?.map((tt: TicketTag) => tt.tag.name) || [];
+  const tags = ticket.ticket_tags?.map((tt: { tag: { name: string } }) => tt.tag.name) || [];
 
   return (
     <div className="p-6">
@@ -134,4 +133,6 @@ export default async function TicketPage({ params }: PageProps) {
       </div>
     </div>
   );
-} 
+}
+
+export default withAuth(TicketPage) 

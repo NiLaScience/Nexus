@@ -10,14 +10,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { addInternalNoteAction, getInternalNotesAction } from "@/app/actions/tickets/messages.server";
+import { addInternalNoteAction, getInternalNotesAction, getMessageWithAttachmentsAction } from "@/app/actions/tickets/messages.server";
 import type { TicketMessage } from "@/app/actions/tickets/messages";
 import { formatDistanceToNow } from "date-fns";
 import { uploadAttachmentAction, getAttachmentUrlAction } from "@/app/actions/tickets/attachments";
 import { useToast } from "@/components/ui/use-toast";
-import { createClient } from "@/utils/supabase/client";
 import ReactMarkdown from 'react-markdown';
 import dynamic from 'next/dynamic';
+import { RealtimeService } from '@/services/realtime';
+import { AuthService } from '@/services/auth';
 
 const MDEditor = dynamic(
   () => import('@uiw/react-md-editor').then((mod) => mod.default),
@@ -34,9 +35,46 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
   const [noteText, setNoteText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const supabase = createClient();
+
+  // Initialize user role
+  useEffect(() => {
+    const initializeUser = async () => {
+      try {
+        const { user, error } = await AuthService.getCurrentUser();
+        if (error || !user?.profile) {
+          toast({
+            title: "Error",
+            description: "You must be logged in to view internal notes",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Only allow agents and admins to view internal notes
+        if (user.profile.role === 'customer') {
+          toast({
+            title: "Error",
+            description: "You do not have permission to view internal notes",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        setUserRole(user.profile.role);
+      } catch (error) {
+        console.error('Error initializing user:', error);
+        toast({
+          title: "Error",
+          description: "Failed to initialize user",
+          variant: "destructive",
+        });
+      }
+    };
+    initializeUser();
+  }, [toast]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -48,15 +86,38 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
     if ((!noteText.trim() && selectedFiles.length === 0) || isSubmitting) return;
 
     try {
-      setIsSubmitting(true);
-      const { message, error } = await addInternalNoteAction({
-        ticketId,
-        content: noteText || 'Added attachments',
-      });
-
-      if (error || !message) {
-        throw new Error(error || "Failed to add note");
+      const { user, error: authError } = await AuthService.getCurrentUser();
+      if (authError || !user?.profile) {
+        toast({
+          title: "Error",
+          description: "You must be logged in to add internal notes",
+          variant: "destructive",
+        });
+        return;
       }
+
+      // Only allow agents and admins to add internal notes
+      if (user.profile.role === 'customer') {
+        toast({
+          title: "Error",
+          description: "You do not have permission to add internal notes",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsSubmitting(true);
+      const formData = new FormData();
+      formData.append('ticketId', ticketId);
+      formData.append('content', noteText || 'Added attachments');
+      formData.append('isInternal', 'true');
+
+      const result = await addInternalNoteAction(formData);
+      if (!result.result?.message) {
+        throw new Error('Failed to add note');
+      }
+
+      const message = result.result.message;
 
       // Upload attachments if any
       if (selectedFiles.length > 0) {
@@ -72,38 +133,11 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
         }
 
         // Fetch the updated message with attachments
-        const { data: updatedMessage } = await supabase
-          .from('ticket_messages')
-          .select(`
-            id,
-            ticket_id,
-            content,
-            created_at,
-            is_internal,
-            source,
-            author:profiles!ticket_messages_author_id_fkey(id, full_name, role),
-            attachments:message_attachments(
-              id,
-              name,
-              size,
-              mime_type,
-              storage_path,
-              created_at
-            )
-          `)
-          .eq('id', message.id)
-          .single();
-
-        if (updatedMessage) {
-          // Update UI with message including attachments
-          setNotes([...notes, updatedMessage as unknown as TicketMessage]);
-        } else {
-          // Fallback to original message if fetch fails
-          setNotes([...notes, message]);
-        }
+        const updatedMessage = await getMessageWithAttachmentsAction(message.id);
+        setNotes(prev => [...prev, updatedMessage]);
       } else {
         // No attachments, use original message
-        setNotes([...notes, message]);
+        setNotes(prev => [...prev, message]);
       }
 
       setNoteText("");
@@ -155,6 +189,26 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
   // Load notes with attachments
   const loadNotes = useCallback(async () => {
     try {
+      const { user, error: authError } = await AuthService.getCurrentUser();
+      if (authError || !user?.profile) {
+        toast({
+          title: "Error",
+          description: "You must be logged in to view internal notes",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Only allow agents and admins to load internal notes
+      if (user.profile.role === 'customer') {
+        toast({
+          title: "Error",
+          description: "You do not have permission to view internal notes",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { messages: updatedNotes, error } = await getInternalNotesAction(ticketId);
       if (error) {
         toast({
@@ -175,50 +229,28 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
   useEffect(() => {
     // Initial load
     loadNotes();
+  }, [loadNotes]);
 
-    let reloadTimeout: NodeJS.Timeout;
+  useEffect(() => {
+    let channel: any;
 
-    // Set up real-time subscription for both messages and attachments
-    const channel = supabase
-      .channel('internal-notes-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'ticket_messages',
-          filter: `ticket_id=eq.${ticketId} and is_internal=eq.true`
-        },
-        () => {
-          // Clear any existing timeout
-          if (reloadTimeout) clearTimeout(reloadTimeout);
-          // Set a new timeout to reload after a delay
-          reloadTimeout = setTimeout(loadNotes, 500);
+    const setupSubscription = async () => {
+      channel = await RealtimeService.subscribeToMessages(ticketId, async (payload) => {
+        const message = await getMessageWithAttachmentsAction(payload.new.id);
+        if (message.message_type === 'internal') {
+          setNotes(prev => [...prev, message]);
         }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'message_attachments',
-          filter: `message_id=in.(select id from ticket_messages where ticket_id=${ticketId} and is_internal=true)`
-        },
-        () => {
-          // Clear any existing timeout
-          if (reloadTimeout) clearTimeout(reloadTimeout);
-          // Set a new timeout to reload after a delay
-          reloadTimeout = setTimeout(loadNotes, 500);
-        }
-      )
-      .subscribe();
-
-    // Cleanup subscription and timeout
-    return () => {
-      if (reloadTimeout) clearTimeout(reloadTimeout);
-      supabase.removeChannel(channel);
+      });
     };
-  }, [ticketId, supabase, loadNotes]);
+
+    setupSubscription();
+
+    return () => {
+      if (channel) {
+        RealtimeService.unsubscribeFromMessages(channel);
+      }
+    };
+  }, [ticketId]);
 
   return (
     <Card>

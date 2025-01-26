@@ -1,12 +1,15 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { AddMessageParams, TicketMessage } from "./messages";
+import { SupabaseService } from "@/services/supabase";
+import { AuthService } from "@/services/auth";
+import { FormService } from "@/services/form";
+import { addMessageSchema, addInternalNoteSchema } from "./schemas";
+import { TicketMessage } from "./messages";
 import { revalidatePath } from "next/cache";
 
 export async function getTicketMessagesAction(ticketId: string) {
   console.log('Fetching messages for ticket:', ticketId);
-  const supabase = await createClient();
+  const supabase = await SupabaseService.createClientWithCookies();
 
   try {
     // Debug: First check all messages in the table
@@ -65,74 +68,69 @@ export async function getTicketMessagesAction(ticketId: string) {
   }
 }
 
-export async function addMessageAction({ ticketId, content, isInternal = false }: AddMessageParams) {
-  console.log('Adding message:', { ticketId, content, isInternal });
-  const supabase = await createClient();
+export async function addMessageAction(formData: FormData) {
+  return FormService.handleSubmission({
+    formData,
+    schema: addMessageSchema,
+    onError: (errors) => {
+      throw new Error(errors[0].message);
+    },
+    onSuccess: async (data) => {
+      // Get current user
+      const { user, error: authError } = await AuthService.getCurrentUser();
+      if (authError || !user?.profile) {
+        throw new Error(authError || 'Not authenticated');
+      }
 
-  try {
-    // Validate content
-    if (!content?.trim()) {
-      throw new Error("Message content cannot be empty");
-    }
+      // Create service client for database operations
+      const serviceClient = await SupabaseService.createServiceClientWithCookies();
 
-    // Get current user's ID
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error('Auth error:', userError);
-      throw new Error("Not authenticated");
-    }
-
-    // Add the message
-    const { data: message, error: insertError } = await supabase
-      .from("ticket_messages")
-      .insert({
-        ticket_id: ticketId,
-        author_id: user.id,
-        content: content.trim(),
-        source: "web",
-        is_internal: isInternal
-      })
-      .select(`
-        id,
-        ticket_id,
-        content,
-        source,
-        is_internal,
-        created_at,
-        author:author_id(id, full_name, role),
-        attachments:message_attachments(
+      // Add the message
+      const { data: message, error: insertError } = await serviceClient
+        .from("ticket_messages")
+        .insert({
+          ticket_id: data.ticketId,
+          author_id: user.profile.id,
+          content: data.content.trim(),
+          source: "web",
+          is_internal: data.isInternal
+        })
+        .select(`
           id,
-          name,
-          size,
-          mime_type,
-          storage_path,
-          created_at
-        )
-      `)
-      .single();
+          ticket_id,
+          content,
+          source,
+          is_internal,
+          created_at,
+          author:author_id(id, full_name, role),
+          attachments:message_attachments(
+            id,
+            name,
+            size,
+            mime_type,
+            storage_path,
+            created_at
+          )
+        `)
+        .single();
 
-    if (insertError) {
-      console.error('Error creating message:', insertError);
-      throw insertError;
+      if (insertError) {
+        console.error('Error creating message:', insertError);
+        throw insertError;
+      }
+
+      // Revalidate the ticket page to update timeline
+      revalidatePath(`/tickets/${data.ticketId}`);
+
+      console.log('New message added:', message);
+      return { message: message as unknown as TicketMessage };
     }
-
-    // Revalidate the ticket page to update timeline
-    revalidatePath(`/tickets/${ticketId}`);
-
-    console.log('New message added:', message);
-    return { message: message as unknown as TicketMessage, error: null };
-  } catch (error) {
-    console.error("Error adding message:", error);
-    return {
-      message: null,
-      error: error instanceof Error ? error.message : "Failed to add message. Please try again."
-    };
-  }
+  });
 }
 
 export async function getInternalNotesAction(ticketId: string) {
   console.log('Fetching internal notes for ticket:', ticketId);
-  const supabase = await createClient();
+  const supabase = await SupabaseService.createClientWithCookies();
 
   try {
     const { data: messages, error } = await supabase
@@ -174,6 +172,98 @@ export async function getInternalNotesAction(ticketId: string) {
   }
 }
 
-export async function addInternalNoteAction({ ticketId, content }: AddMessageParams) {
-  return addMessageAction({ ticketId, content, isInternal: true });
+export async function addInternalNoteAction(formData: FormData) {
+  return FormService.handleSubmission({
+    formData,
+    schema: addInternalNoteSchema,
+    onError: (errors) => {
+      throw new Error(errors[0].message);
+    },
+    onSuccess: async (data) => {
+      // Get current user and verify they are an agent or admin
+      const { user, error: authError } = await AuthService.getCurrentUser();
+      if (authError || !user?.profile) {
+        throw new Error(authError || 'Not authenticated');
+      }
+
+      if (!['agent', 'admin'].includes(user.profile.role)) {
+        throw new Error('Only agents and admins can add internal notes');
+      }
+
+      // Create service client for database operations
+      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+
+      // Add the internal note
+      const { data: message, error: insertError } = await serviceClient
+        .from("ticket_messages")
+        .insert({
+          ticket_id: data.ticketId,
+          author_id: user.profile.id,
+          content: data.content.trim(),
+          source: "web",
+          is_internal: true
+        })
+        .select(`
+          id,
+          ticket_id,
+          content,
+          source,
+          is_internal,
+          created_at,
+          author:author_id(id, full_name, role),
+          attachments:message_attachments(
+            id,
+            name,
+            size,
+            mime_type,
+            storage_path,
+            created_at
+          )
+        `)
+        .single();
+
+      if (insertError) {
+        console.error('Error creating internal note:', insertError);
+        throw insertError;
+      }
+
+      // Revalidate the ticket page to update timeline
+      revalidatePath(`/tickets/${data.ticketId}`);
+
+      console.log('New internal note added:', message);
+      return { message: message as unknown as TicketMessage };
+    }
+  });
+}
+
+export async function getMessageWithAttachmentsAction(messageId: string) {
+  const supabase = await SupabaseService.createClientWithCookies();
+  const { data: message, error } = await supabase
+    .from('ticket_messages')
+    .select(`
+      id,
+      ticket_id,
+      content,
+      created_at,
+      is_internal,
+      source,
+      author:profiles!ticket_messages_author_id_fkey(id, full_name, role),
+      attachments:message_attachments(
+        id,
+        name,
+        size,
+        mime_type,
+        storage_path,
+        created_at
+      )
+    `)
+    .eq('id', messageId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching message:', error);
+    throw new Error('Failed to fetch message with attachments');
+  }
+
+  return message as unknown as TicketMessage;
 } 

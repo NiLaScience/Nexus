@@ -3,22 +3,29 @@ import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/utils/supabase/server";
+import { AuthService } from "@/services/auth";
+import { withGuestOnly } from "@/components/auth/with-guest-only";
 import { redirect } from "next/navigation";
 
-export default async function ResetPassword(props: {
+interface ResetPasswordProps {
   searchParams: Promise<Message> & { [key: string]: string };
-}) {
-  const searchParams = await props.searchParams;
-  const supabase = await createClient();
+}
+
+async function ResetPassword({ searchParams }: ResetPasswordProps) {
+  const message = await searchParams;
 
   // Get the current session to check if we have a valid recovery flow
-  const { data: { session } } = await supabase.auth.getSession();
+  const { session, error } = await AuthService.getSession();
 
   // If there's no active recovery flow, redirect to forgot password
-  if (!session?.user?.email) {
+  if (!session?.user?.email || error) {
     redirect('/forgot-password');
   }
+
+  // Wrap the resetPasswordAction to match the expected type
+  const handleSubmit = async (formData: FormData) => {
+    await resetPasswordAction(formData);
+  };
 
   return (
     <form className="w-full space-y-6">
@@ -56,14 +63,16 @@ export default async function ResetPassword(props: {
 
         <SubmitButton 
           className="w-full"
-          formAction={resetPasswordAction}
+          formAction={handleSubmit}
           pendingText="Resetting password..."
         >
           Reset password
         </SubmitButton>
 
-        <FormMessage message={searchParams} />
+        <FormMessage message={message} />
       </div>
     </form>
   );
 }
+
+export default withGuestOnly(ResetPassword);

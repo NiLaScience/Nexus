@@ -1,26 +1,18 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
+import { AuthService } from "@/services/auth";
+import { withAuth } from "@/components/hoc/with-auth";
+import type { AuthSession } from "@/services/auth";
 
-export default async function Home() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+function Home() {
+  return AuthService.getCurrentUser().then((session: AuthSession) => {
+    // Redirect based on role
+    if (session.user?.profile?.role === 'customer') {
+      redirect("/tickets");
+    }
 
-  // If user is not authenticated, redirect to sign-in
-  if (!user) {
-    redirect("/sign-in");
-  }
-
-  // Get user's profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  // Redirect based on role
-  if (profile?.role === 'customer') {
-    redirect("/tickets");
-  }
-
-  redirect("/dashboard");
+    redirect("/dashboard");
+    return null; // Required for React component
+  });
 }
+
+export default withAuth(Home);

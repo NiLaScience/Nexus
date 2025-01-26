@@ -1,4 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
+import { SupabaseService } from "@/services/supabase";
+import { AuthService } from "@/services/auth";
 import type { TimelineEvent } from "@/types/ticket";
 
 interface TicketEvent {
@@ -30,66 +31,77 @@ function formatStatus(status: string): string {
 }
 
 export async function getTicketEventsAction(ticketId: string) {
-  const supabase = await createClient();
+  try {
+    // Get the current user and verify authentication
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
 
-  // First get all agent IDs mentioned in the events
-  const { data: events, error } = await supabase
-    .from('ticket_events')
-    .select(`
-      id,
-      event_type,
-      old_value,
-      new_value,
-      created_at,
-      actor:profiles!ticket_events_actor_id_fkey(
+    const supabase = await SupabaseService.createClientWithCookies();
+
+    // First get all agent IDs mentioned in the events
+    const { data: events, error } = await supabase
+      .from('ticket_events')
+      .select(`
         id,
-        full_name
-      )
-    `)
-    .eq('ticket_id', ticketId)
-    .order('created_at', { ascending: false })
-    .returns<TicketEvent[]>();
+        event_type,
+        old_value,
+        new_value,
+        created_at,
+        actor:profiles!ticket_events_actor_id_fkey(
+          id,
+          full_name
+        )
+      `)
+      .eq('ticket_id', ticketId)
+      .order('created_at', { ascending: false })
+      .returns<TicketEvent[]>();
 
-  if (error) {
+    if (error) {
+      console.error('Error fetching ticket events:', error);
+      return { error: error.message };
+    }
+
+    // Get all unique agent IDs from old_value and new_value fields in assignment events
+    const agentIds = new Set<string>();
+    events.forEach(event => {
+      if (event.event_type === 'assigned' || event.event_type === 'unassigned') {
+        if (event.old_value) agentIds.add(event.old_value);
+        if (event.new_value) agentIds.add(event.new_value);
+      }
+    });
+
+    // Fetch agent names if there are any agent IDs
+    let agentNames: Record<string, string> = {};
+    if (agentIds.size > 0) {
+      const { data: agents, error: agentsError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', Array.from(agentIds));
+
+      if (!agentsError && agents) {
+        agentNames = agents.reduce((acc, agent) => ({
+          ...acc,
+          [agent.id]: agent.full_name || 'Unknown Agent'
+        }), {});
+      }
+    }
+
+    // Transform the events into the TimelineEvent format
+    const timelineEvents: TimelineEvent[] = events.map(event => ({
+      id: event.id,
+      type: event.event_type,
+      date: new Date(event.created_at).toLocaleString(),
+      user: event.actor?.full_name || 'Unknown User',
+      description: formatEventDescription(event.event_type, event.old_value, event.new_value, agentNames)
+    }));
+
+    return { events: timelineEvents };
+  } catch (error) {
     console.error('Error fetching ticket events:', error);
-    return { error: error.message };
+    return { error: (error as Error).message };
   }
-
-  // Get all unique agent IDs from old_value and new_value fields in assignment events
-  const agentIds = new Set<string>();
-  events.forEach(event => {
-    if (event.event_type === 'assigned' || event.event_type === 'unassigned') {
-      if (event.old_value) agentIds.add(event.old_value);
-      if (event.new_value) agentIds.add(event.new_value);
-    }
-  });
-
-  // Fetch agent names if there are any agent IDs
-  let agentNames: Record<string, string> = {};
-  if (agentIds.size > 0) {
-    const { data: agents, error: agentsError } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', Array.from(agentIds));
-
-    if (!agentsError && agents) {
-      agentNames = agents.reduce((acc, agent) => ({
-        ...acc,
-        [agent.id]: agent.full_name || 'Unknown Agent'
-      }), {});
-    }
-  }
-
-  // Transform the events into the TimelineEvent format
-  const timelineEvents: TimelineEvent[] = events.map(event => ({
-    id: event.id,
-    type: event.event_type,
-    date: new Date(event.created_at).toLocaleString(),
-    user: event.actor?.full_name || 'Unknown User',
-    description: formatEventDescription(event.event_type, event.old_value, event.new_value, agentNames)
-  }));
-
-  return { events: timelineEvents };
 }
 
 function formatEventDescription(

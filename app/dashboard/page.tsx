@@ -1,29 +1,18 @@
 import { Metadata } from 'next'
 import { Dashboard } from '@/components/dashboard/dashboard'
-import { createClient } from '@/utils/supabase/server'
-import { redirect } from 'next/navigation'
+import { withAgentAuth } from '@/components/hoc/with-auth'
 
 export const metadata: Metadata = {
   title: 'Dashboard | Nexus',
   description: 'View your support metrics and recent activity'
 }
 
-export default async function DashboardPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id)
-    .single();
-
-  if (profile?.role === 'customer') {
-    redirect('/tickets');
-  }
-
+async function DashboardPage() {
   return (
     <div className="container mx-auto py-8">
       <Dashboard />
     </div>
   )
-} 
+}
+
+export default withAgentAuth(DashboardPage) 

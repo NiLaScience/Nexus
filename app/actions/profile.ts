@@ -1,7 +1,9 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
 import { revalidateTag, revalidatePath } from "next/cache";
+import { SupabaseService } from "@/services/supabase";
+import { AuthService } from "@/services/auth";
+import type { Profile } from "@/types/team";
 
 export type ProfileUpdateData = {
   full_name: string;
@@ -14,13 +16,12 @@ export type ProfileUpdateData = {
  * @returns Object indicating success or error
  */
 export async function updateProfileAction(data: ProfileUpdateData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
+  const { user, error: authError } = await AuthService.getCurrentUser();
+  if (authError || !user) {
     return { error: "Not authenticated" };
   }
 
+  const supabase = await SupabaseService.createClientWithCookies();
   const { error } = await supabase
     .from('profiles')
     .update({
@@ -46,24 +47,13 @@ export async function updateProfileAction(data: ProfileUpdateData) {
  * @returns Object indicating success or error
  */
 export async function updateUserActiveStatusAction(userId: string, isActive: boolean) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "Not authenticated" };
-  }
-
-  // Only admins can update other users' active status
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || profile.role !== 'admin') {
+  // Check if the current user is an admin
+  const isAdmin = await AuthService.isAdmin();
+  if (!isAdmin) {
     return { error: "Only admins can update user active status" };
   }
 
+  const supabase = await SupabaseService.createClientWithCookies();
   const { error } = await supabase
     .from('profiles')
     .update({
@@ -86,25 +76,12 @@ export async function updateUserActiveStatusAction(userId: string, isActive: boo
  * @returns Object containing profile data or error
  */
 export async function getProfileAction() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
+  const { user, error: authError } = await AuthService.getCurrentUser();
+  if (authError || !user) {
     return { error: "Not authenticated" };
   }
 
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
-
-  if (error) {
-    console.error('Error fetching profile:', error);
-    return { error: "Failed to fetch profile" };
-  }
-
-  return { profile };
+  return { profile: user.profile };
 }
 
 /**
@@ -125,12 +102,12 @@ export async function getAvailableRolesAction() {
  * @returns Object indicating success or error
  */
 export async function joinOrganizationAction(organizationId: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
+  const { user, error: authError } = await AuthService.getCurrentUser();
+  if (authError || !user) {
     return { error: "Not authenticated" };
   }
+
+  const supabase = await SupabaseService.createClientWithCookies();
 
   // First, update the profile's organization_id
   const { error: profileError } = await supabase

@@ -19,6 +19,7 @@ export interface TicketMessage extends BaseTicketMessage {
     storage_path: string;
     created_at: string;
   }[];
+  is_internal: boolean;
 }
 
 export interface AddMessageParams {

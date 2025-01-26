@@ -16,156 +16,198 @@ import {
 import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
 import type { CustomField } from "@/types/custom-fields";
 import { getAvailableTagsAction } from "@/app/actions/tickets.server";
+import { createTicketAction } from "@/app/actions/tickets/create.server";
+import { useToast } from "@/components/ui/use-toast";
+import { FormMessage } from "@/components/form-message";
+import { SubmitButton } from "@/components/submit-button";
+import type { 
+  TicketFormProps, 
+  TicketFormState, 
+  TicketTag, 
+  TicketPriority,
+  TicketCustomFieldValue
+} from "@/types/ticket";
+import { ticketSchema } from '@/app/actions/tickets/schemas';
+import type { TicketInput } from '@/app/actions/tickets/schemas';
 
-interface TicketFormProps {
-  onSubmit: (formData: FormData) => Promise<any>;
-}
-
-export function TicketForm({ onSubmit }: TicketFormProps) {
+export function TicketForm() {
   const router = useRouter();
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
-  const [availableTags, setAvailableTags] = useState<{ id: string; name: string }[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [priority, setPriority] = useState<string>("medium");
-  const [customFields, setCustomFields] = useState<CustomField[]>([]);
-  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState(true);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [tagInput, setTagInput] = useState('');
+  const [workspaceSettings, setWorkspaceSettings] = useState<any>(null);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const [formState, setFormState] = useState<TicketInput>({
+    title: '',
+    description: '',
+    priority: 'medium',
+    status: 'open',
+    tags: [],
+    custom_fields: {},
+    files: []
+  });
 
   useEffect(() => {
+    async function loadWorkspaceSettings() {
+      try {
+        const settings = await getWorkspaceSettings();
+        if (settings) {
+          setWorkspaceSettings(settings);
+        }
+      } catch (error) {
+        setFormError('Failed to load workspace settings');
+      }
+    }
+
+    async function loadAvailableTags() {
+      try {
+        const result = await getAvailableTagsAction();
+        if ('error' in result) {
+          setFormError('Failed to load available tags');
+          return;
+        }
+        if (result.tags) {
+          setAvailableTags(result.tags.map(tag => tag.name));
+        }
+      } catch (error) {
+        setFormError('Failed to load available tags');
+      }
+    }
+
     loadWorkspaceSettings();
     loadAvailableTags();
   }, []);
 
-  const loadWorkspaceSettings = async () => {
-    try {
-      const settings = await getWorkspaceSettings();
-      if (settings?.ticket_fields) {
-        setCustomFields(settings.ticket_fields);
-        // Initialize custom field values
-        const initialValues: Record<string, any> = {};
-        settings.ticket_fields.forEach((field: CustomField) => {
-          initialValues[field.name] = field.type === 'select' ? field.options?.[0] || '' : '';
-        });
-        setCustomFieldValues(initialValues);
+  const handleCustomFieldChange = (name: string, value: string | number | Date) => {
+    setFormState(prev => ({
+      ...prev,
+      custom_fields: {
+        ...prev.custom_fields,
+        [name]: value
       }
-    } catch (error) {
-      console.error('Failed to load workspace settings:', error);
-    } finally {
-      setLoading(false);
-    }
+    }));
+    setFormError(null);
   };
 
-  const loadAvailableTags = async () => {
-    try {
-      const { tags: fetchedTags } = await getAvailableTagsAction();
-      if (fetchedTags) {
-        setAvailableTags(fetchedTags);
-      }
-    } catch (error) {
-      console.error('Failed to load tags:', error);
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      setFormState(prev => ({
+        ...prev,
+        files: Array.from(files)
+      }));
+      setFormError(null);
     }
   };
 
   const handleAddTag = () => {
-    if (tagInput && !tags.includes(tagInput)) {
-      setTags([...tags, tagInput]);
-      setTagInput("");
+    if (tagInput.trim() && !formState.tags.includes(tagInput.trim())) {
+      setFormState(prev => ({
+        ...prev,
+        tags: [...prev.tags, tagInput.trim()]
+      }));
+      setTagInput('');
+      setFormError(null);
     }
   };
 
-  const removeTag = (tagToRemove: string) => {
-    setTags(tags.filter((tag) => tag !== tagToRemove));
-  };
-
-  const handleCustomFieldChange = (fieldName: string, value: any) => {
-    setCustomFieldValues(prev => ({
+  const removeTag = (tag: string) => {
+    setFormState(prev => ({
       ...prev,
-      [fieldName]: value
+      tags: prev.tags.filter(t => t !== tag)
     }));
+    setFormError(null);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setSelectedFiles(Array.from(e.target.files));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
+  async function handleSubmit(formData: FormData) {
     try {
-      const formData = new FormData(e.currentTarget);
-      formData.append('tags', JSON.stringify(tags));
-      formData.append('priority', priority);
-      formData.append('status', 'open'); // Always set status to 'open' for new tickets
-      formData.append('custom_fields', JSON.stringify(customFieldValues));
+      const result = await createTicketAction(formData);
       
-      // Add files to formData
-      selectedFiles.forEach(file => {
-        formData.append('files', file);
+      if ('error' in result) {
+        setFormError(result.error || 'Failed to create ticket');
+        return;
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Ticket created successfully',
       });
 
-      await onSubmit(formData);
-      router.push('/tickets');
-    } catch (error) {
-      console.error('Error submitting ticket:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+      // Reset form
+      setFormState({
+        title: '',
+        description: '',
+        priority: 'medium',
+        status: 'open',
+        tags: [],
+        custom_fields: {},
+        files: []
+      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      setTagInput('');
+      setFormError(null);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="w-6 h-6 animate-spin" />
-      </div>
-    );
+      // Redirect to the new ticket
+      if (result.result?.ticket?.id) {
+        router.push(`/tickets/${result.result.ticket.id}`);
+      }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to create ticket');
+    }
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-6">Create New Ticket</h1>
-      <form className="space-y-6" onSubmit={handleSubmit}>
-        <div>
-          <label className="block text-sm font-medium mb-2" htmlFor="title">
-            Title
-          </label>
+    <div className="space-y-6">
+      <form action={handleSubmit} className="space-y-6">
+        {/* Title */}
+        <div className="space-y-2">
+          <label htmlFor="title" className="text-sm font-medium">Title</label>
           <Input
             id="title"
             name="title"
-            placeholder="Enter ticket title"
+            value={formState.title}
+            onChange={(e) => {
+              setFormState(prev => ({ ...prev, title: e.target.value }));
+              setFormError(null);
+            }}
             required
             minLength={3}
             maxLength={100}
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-2" htmlFor="description">
-            Description
-          </label>
+        {/* Description */}
+        <div className="space-y-2">
+          <label htmlFor="description" className="text-sm font-medium">Description</label>
           <Textarea
             id="description"
             name="description"
-            placeholder="Describe your issue..."
-            className="h-32"
+            value={formState.description}
+            onChange={(e) => {
+              setFormState(prev => ({ ...prev, description: e.target.value }));
+              setFormError(null);
+            }}
             required
             minLength={10}
             maxLength={1000}
+            className="h-32"
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-2" htmlFor="priority">
-            Priority
-          </label>
+        {/* Priority */}
+        <div className="space-y-2">
+          <label htmlFor="priority" className="text-sm font-medium">Priority</label>
           <Select
-            value={priority}
-            onValueChange={setPriority}
+            name="priority"
+            value={formState.priority}
+            onValueChange={(value) => {
+              setFormState(prev => ({ ...prev, priority: value as TicketInput['priority'] }));
+              setFormError(null);
+            }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select priority" />
@@ -180,16 +222,14 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
         </div>
 
         {/* Custom Fields */}
-        {customFields.map((field) => (
-          <div key={field.name}>
-            <label className="block text-sm font-medium mb-2" htmlFor={field.name}>
-              {field.display}
-              {field.required && <span className="text-destructive ml-1">*</span>}
-            </label>
+        {workspaceSettings?.ticket_fields?.map((field: CustomField) => (
+          <div key={field.name} className="space-y-2">
+            <label className="text-sm font-medium">{field.display}</label>
             {field.type === 'text' && (
               <Input
                 id={field.name}
-                value={customFieldValues[field.name] || ''}
+                name={`custom_fields.${field.name}`}
+                value={formState.custom_fields[field.name]?.toString() || ''}
                 onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
                 required={field.required}
               />
@@ -197,15 +237,17 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
             {field.type === 'number' && (
               <Input
                 id={field.name}
+                name={`custom_fields.${field.name}`}
                 type="number"
-                value={customFieldValues[field.name] || ''}
+                value={formState.custom_fields[field.name]?.toString() || ''}
                 onChange={(e) => handleCustomFieldChange(field.name, parseFloat(e.target.value))}
                 required={field.required}
               />
             )}
             {field.type === 'select' && (
               <Select
-                value={customFieldValues[field.name] || ''}
+                name={`custom_fields.${field.name}`}
+                value={formState.custom_fields[field.name]?.toString() || ''}
                 onValueChange={(value) => handleCustomFieldChange(field.name, value)}
               >
                 <SelectTrigger>
@@ -220,139 +262,92 @@ export function TicketForm({ onSubmit }: TicketFormProps) {
                 </SelectContent>
               </Select>
             )}
-            {field.type === 'date' && (
-              <Input
-                id={field.name}
-                type="datetime-local"
-                value={customFieldValues[field.name] || ''}
-                onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
-                required={field.required}
-              />
-            )}
           </div>
         ))}
 
-        <div>
-          <label className="block text-sm font-medium mb-2">Tags</label>
-          <div className="flex gap-2 mb-2 flex-wrap">
-            {tags.map((tag) => (
-              <span
+        {/* Tags */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Tags</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {formState.tags.map((tag) => (
+              <div
                 key={tag}
-                className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-sm flex items-center gap-1"
+                className="flex items-center gap-1 bg-secondary text-secondary-foreground px-2 py-1 rounded-md"
               >
-                {tag}
+                <span>{tag}</span>
                 <button
                   type="button"
                   onClick={() => removeTag(tag)}
-                  className="hover:text-blue-900"
+                  className="text-secondary-foreground/50 hover:text-secondary-foreground"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="h-3 w-3" />
                 </button>
-              </span>
+              </div>
             ))}
           </div>
           <div className="flex gap-2">
-            <Select
-              value={tagInput}
-              onValueChange={(value) => {
-                if (value && !tags.includes(value)) {
-                  setTags([...tags, value]);
-                  setTagInput("");
-                }
-              }}
-            >
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Select or type a tag" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableTags.map((tag) => (
-                  <SelectItem key={tag.id} value={tag.name}>
-                    {tag.name}
-                  </SelectItem>
-                ))}
-                {tagInput && !availableTags.some(t => t.name === tagInput) && (
-                  <SelectItem value={tagInput}>
-                    Create "{tagInput}"
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
             <Input
-              placeholder="Or type a new tag"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
+              placeholder="Add a tag"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
                   e.preventDefault();
                   handleAddTag();
                 }
               }}
             />
-            <Button type="button" variant="outline" onClick={handleAddTag}>
-              <PlusCircle className="w-4 h-4" />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={handleAddTag}
+            >
+              <PlusCircle className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-2">Attachments</label>
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                multiple
-                onChange={handleFileSelect}
-              />
-              <Button 
-                type="button"
-                variant="outline" 
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Paperclip className="w-4 h-4 mr-2" /> Attach Files
-              </Button>
-              {selectedFiles.length > 0 && (
-                <span className="text-sm text-muted-foreground">
-                  {selectedFiles.length} file(s) selected
-                </span>
-              )}
-            </div>
-            {selectedFiles.length > 0 && (
-              <div className="space-y-2">
-                {selectedFiles.map((file, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 rounded bg-muted/50">
-                    <Paperclip className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm flex-1">{file.name}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedFiles(selectedFiles.filter((_, i) => i !== index));
-                        if (fileInputRef.current) {
-                          fileInputRef.current.value = '';
-                        }
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* File Upload */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Attachments</label>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip className="h-4 w-4 mr-2" />
+              Add Files
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              name="files"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
           </div>
+          {formState.files.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {Array.from(formState.files).map((file, index) => (
+                <li key={index} className="text-sm text-muted-foreground">
+                  {file.name} ({Math.round(file.size / 1024)}KB)
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
-        <Button type="submit" disabled={isSubmitting} className="w-full">
-          {isSubmitting ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Creating Ticket...
-            </>
-          ) : (
-            'Create Ticket'
-          )}
-        </Button>
+        {formError && <FormMessage message={{ error: formError }} />}
+
+        <SubmitButton
+          className="w-full"
+          pendingText="Creating ticket..."
+        >
+          Create Ticket
+        </SubmitButton>
       </form>
     </div>
   );

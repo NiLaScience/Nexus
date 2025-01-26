@@ -1,4 +1,7 @@
-export type TicketStatus = string;
+import type { CustomField } from "./custom-fields";
+
+export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 
 export interface User {
   id: string;
@@ -8,9 +11,8 @@ export interface User {
 }
 
 export interface TicketTag {
-  tag: {
-    name: string;
-  };
+  id: string;
+  name: string;
 }
 
 export interface Ticket {
@@ -18,7 +20,7 @@ export interface Ticket {
   title: string;
   description: string;
   status: TicketStatus;
-  priority: 'low' | 'medium' | 'high';
+  priority: TicketPriority;
   created: string;
   tags: string[];
   organization: string;
@@ -74,15 +76,19 @@ export interface InternalComment {
 export type Attachment = {
   id: string;
   message_id: string;
-  name: string;
+  filename: string;
+  content_type: string;
   size: number;
-  mime_type: string;
   storage_path: string;
   created_at: string;
-  author?: {
+  message?: {
     id: string;
-    full_name: string | null;
-    role: string;
+    content: string;
+    created_at: string;
+    author?: {
+      id: string;
+      full_name: string | null;
+    };
   };
 };
 
@@ -101,4 +107,37 @@ export interface RelatedTicket {
   assignedTo?: {
     name: string;
   };
+}
+
+export interface TicketFormState {
+  title: string;
+  description: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  tags: string[];
+  customFields: Record<string, string | number | Date>;
+  files: File[];
+}
+
+export interface TicketFormData extends FormData {
+  get(key: 'title'): string;
+  get(key: 'description'): string;
+  get(key: 'priority'): TicketPriority;
+  get(key: 'status'): TicketStatus;
+  get(key: 'tags'): string;
+  get(key: 'custom_fields'): string;
+  get(key: 'files'): File;
+}
+
+export interface TicketFormProps {
+  onSubmit: (formData: TicketFormData) => Promise<void>;
+  initialValues?: Partial<TicketFormState>;
+}
+
+export interface TicketCustomFieldValue {
+  fieldName: string;
+  value: string | number | Date;
+  required: boolean;
+  type: CustomField['type'];
+  options?: string[];
 } 

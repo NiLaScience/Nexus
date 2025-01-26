@@ -1,8 +1,24 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
-import { createServerClient, CookieOptions } from "@supabase/ssr";
+import { SupabaseService } from "@/services/supabase";
+import { AuthService } from "@/services/auth";
+
+interface DBMessage {
+  id: string;
+  author: {
+    id: string;
+    full_name: string | null;
+    role: string;
+  };
+  attachments: {
+    id: string;
+    name: string;
+    size: number;
+    mime_type: string;
+    storage_path: string;
+    created_at: string;
+  }[];
+}
 
 export type Attachment = {
   id: string;
@@ -37,9 +53,14 @@ type RawAttachment = {
 };
 
 export async function getMessageAttachmentsAction(messageId: string) {
-  const supabase = await createClient();
-
   try {
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
+
     const { data: attachments, error } = await supabase
       .from('message_attachments')
       .select(`
@@ -77,30 +98,14 @@ export async function getMessageAttachmentsAction(messageId: string) {
 }
 
 export async function uploadAttachmentAction(messageId: string, file: File) {
-  const supabase = await createClient();
-  const cookieStore = await cookies();
-  const serviceClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.delete({ name, ...options });
-        },
-      },
-    }
-  );
-
   try {
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
+    const serviceClient = await SupabaseService.createServiceClient();
 
     // Get the ticket ID for the message to use in storage path
     const { data: message, error: messageError } = await serviceClient
@@ -156,9 +161,14 @@ export async function uploadAttachmentAction(messageId: string, file: File) {
 }
 
 export async function getAttachmentUrlAction(storagePath: string) {
-  const supabase = await createClient();
-
   try {
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
+
     // Create a signed URL that expires in 1 hour
     const { data, error } = await supabase.storage
       .from('ticket-attachments')
@@ -175,26 +185,19 @@ export async function getAttachmentUrlAction(storagePath: string) {
 }
 
 export async function deleteAttachmentAction(attachmentId: string) {
-  const cookieStore = await cookies();
-  const serviceClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.delete({ name, ...options });
-        },
-      },
-    }
-  );
-
   try {
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    // Only admins and agents can delete attachments
+    if (!['admin', 'agent'].includes(user.profile.role)) {
+      throw new Error('Unauthorized: Only admins and agents can delete attachments');
+    }
+
+    const serviceClient = await SupabaseService.createServiceClient();
+
     // Get the attachment details first
     const { data: attachment, error: fetchError } = await serviceClient
       .from('message_attachments')
@@ -222,35 +225,22 @@ export async function deleteAttachmentAction(attachmentId: string) {
     return { success: true };
   } catch (error) {
     console.error('Error deleting attachment:', error);
-    return { error: 'Failed to delete attachment' };
+    return { error: error instanceof Error ? error.message : 'Failed to delete attachment' };
   }
 }
 
 export async function getTicketAttachmentsAction(ticketId: string) {
-  if (!ticketId) {
-    console.error('No ticket ID provided');
-    return { error: 'No ticket ID provided' };
-  }
-
-  const supabase = await createClient();
-
   try {
-    type DBMessage = {
-      id: string;
-      author: {
-        id: string;
-        full_name: string | null;
-        role: string;
-      };
-      attachments: {
-        id: string;
-        name: string;
-        size: number;
-        mime_type: string;
-        storage_path: string;
-        created_at: string;
-      }[];
-    };
+    const { user, error: authError } = await AuthService.getCurrentUser();
+    if (authError || !user?.profile) {
+      throw new Error(authError || 'Not authenticated');
+    }
+
+    if (!ticketId) {
+      throw new Error('No ticket ID provided');
+    }
+
+    const supabase = await SupabaseService.createClientWithCookies();
 
     const { data: messages, error } = await supabase
       .from('ticket_messages')
@@ -273,30 +263,19 @@ export async function getTicketAttachmentsAction(ticketId: string) {
       .eq('ticket_id', ticketId)
       .returns<DBMessage[]>();
 
-    if (error) {
-      console.error('Error fetching attachments:', error);
-      throw error;
-    }
+    if (error) throw error;
 
-    if (!messages) return { attachments: [] };
-
-    // Transform the nested data structure - flatten attachments from all messages
-    const transformedAttachments = messages.flatMap(message => 
+    // Flatten the messages array to get all attachments
+    const attachments = messages.flatMap(message => 
       message.attachments.map(attachment => ({
-        id: attachment.id,
-        message_id: message.id,
-        name: attachment.name,
-        size: attachment.size,
-        mime_type: attachment.mime_type,
-        storage_path: attachment.storage_path,
-        created_at: attachment.created_at,
+        ...attachment,
         author: message.author
       }))
     );
 
-    return { attachments: transformedAttachments };
+    return { attachments };
   } catch (error) {
     console.error('Error fetching ticket attachments:', error);
-    return { error: 'Failed to fetch attachments' };
+    return { error: error instanceof Error ? error.message : 'Failed to fetch attachments' };
   }
 } 

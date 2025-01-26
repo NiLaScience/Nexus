@@ -15,24 +15,53 @@ import { Input } from '@/components/ui/input';
 import { createCategory } from '@/app/actions/articles/articles.server';
 import { DEFAULT_WORKSPACE_ID } from '@/types/custom-fields';
 import { useRouter } from 'next/navigation';
+import { FormMessage } from '@/components/form-message';
+import { SubmitButton } from '@/components/submit-button';
+import { useToast } from '@/components/ui/use-toast';
+import { FormService } from '@/services/form';
+import { categorySchema } from '@/app/actions/articles/schemas';
+import type { CategoryInput } from '@/app/actions/articles/schemas';
 
 export function CategoryDialog() {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formState, setFormState] = useState<CategoryInput>({
+    name: '',
+    workspace_id: DEFAULT_WORKSPACE_ID,
+  });
   const router = useRouter();
+  const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
 
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('workspace_id', DEFAULT_WORKSPACE_ID);
+    try {
+      const result = await FormService.handleSubmission({
+        formData,
+        schema: categorySchema,
+        onSuccess: async (data) => {
+          await createCategory(formData);
+          toast({
+            title: 'Success',
+            description: 'Category created successfully',
+          });
+        },
+        onError: (errors) => {
+          setFormError(errors[0]?.message || 'Form validation failed');
+        },
+      });
 
-    await createCategory(formData);
-    setName('');
-    setOpen(false);
-    router.refresh();
-  };
+      if (result.success) {
+        setFormState({ name: '', workspace_id: DEFAULT_WORKSPACE_ID });
+        setOpen(false);
+        router.refresh();
+      }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to create category');
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -54,18 +83,26 @@ export function CategoryDialog() {
               </label>
               <Input
                 id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                name="name"
+                value={formState.name}
+                onChange={(e) => {
+                  setFormState(prev => ({ ...prev, name: e.target.value }));
+                  setFormError(null);
+                }}
                 placeholder="e.g., Getting Started"
                 required
+                minLength={2}
+                maxLength={50}
               />
             </div>
+            <input type="hidden" name="workspace_id" value={DEFAULT_WORKSPACE_ID} />
+            {formError && <FormMessage message={{ error: formError }} />}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit">Create Category</Button>
+            <SubmitButton>Create Category</SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -3,10 +3,21 @@ import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { withGuestOnly } from "@/components/auth/with-guest-only";
 import Link from "next/link";
 
-export default async function Login(props: { searchParams: Promise<Message> }) {
-  const searchParams = await props.searchParams;
+interface LoginProps {
+  searchParams: Promise<Message>;
+}
+
+async function Login({ searchParams }: LoginProps) {
+  const message = await searchParams;
+
+  // Wrap the signInAction to match the expected type
+  const handleSubmit = async (formData: FormData) => {
+    await signInAction(formData);
+  };
+
   return (
     <form className="w-full space-y-6">
       <div className="space-y-2 text-center">
@@ -53,13 +64,15 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
         <SubmitButton 
           className="w-full"
           pendingText="Signing In..." 
-          formAction={signInAction}
+          formAction={handleSubmit}
         >
           Sign in
         </SubmitButton>
 
-        <FormMessage message={searchParams} />
+        <FormMessage message={message} />
       </div>
     </form>
   );
 }
+
+export default withGuestOnly(Login);

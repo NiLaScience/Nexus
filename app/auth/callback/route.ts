@@ -1,4 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
+import { SupabaseService } from "@/services/supabase";
+import { AuthService } from "@/services/auth";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   const next = requestUrl.searchParams.get("next")?.toString();
 
   if (code) {
-    const supabase = await createClient();
+    const supabase = await SupabaseService.createAnonymousClientWithCookies();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (error) {
@@ -23,12 +24,13 @@ export async function GET(request: Request) {
     }
 
     // Get the user's profile to determine where to redirect
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, organization_id')
-      .eq('id', user?.id)
-      .single();
+    const { user, error: profileError } = await AuthService.getCurrentUser();
+    
+    if (profileError || !user?.profile) {
+      return NextResponse.redirect(
+        `${origin}/sign-in?error=${encodeURIComponent("Failed to get user profile")}`
+      );
+    }
 
     // If we have a next URL (like from password reset), use that
     if (next) {
@@ -41,8 +43,8 @@ export async function GET(request: Request) {
     }
 
     // For customers, check if they have an organization
-    if (profile?.role === 'customer') {
-      if (!profile.organization_id) {
+    if (user.profile.role === 'customer') {
+      if (!user.profile.organization_id) {
         // Redirect to settings with a message to join an organization
         return NextResponse.redirect(
           `${origin}/settings?message=${encodeURIComponent("Please join an organization to continue")}`

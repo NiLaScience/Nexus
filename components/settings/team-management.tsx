@@ -18,11 +18,12 @@ import { useState, useEffect } from "react";
 import { getTeamsAction, createTeamAction, updateTeamAction, deleteTeamAction, addTeamMemberAction, removeTeamMemberAction, addTeamOrganizationAction, removeTeamOrganizationAction, getOrganizationsAction } from "@/app/actions/teams.server";
 import { getAgentsAction } from "@/app/actions/tickets.server";
 import { toast } from "sonner";
+import type { Team, TeamMember, Organization, UpdateTeamParams } from "@/types/team";
 
 export function TeamManagement() {
-  const [teams, setTeams] = useState<any[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
-  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [agents, setAgents] = useState<TeamMember[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,7 +83,11 @@ export function TeamManagement() {
   );
 }
 
-function CreateTeamDialog({ onTeamCreated }: { onTeamCreated: () => void }) {
+interface CreateTeamDialogProps {
+  onTeamCreated: () => void;
+}
+
+function CreateTeamDialog({ onTeamCreated }: CreateTeamDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -91,10 +96,12 @@ function CreateTeamDialog({ onTeamCreated }: { onTeamCreated: () => void }) {
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const name = formData.get("name") as string;
-    const description = formData.get("description") as string;
+    const params: UpdateTeamParams = {
+      name: formData.get("name") as string,
+      description: formData.get("description") as string
+    };
 
-    const { error } = await createTeamAction({ name, description });
+    const { error } = await createTeamAction(params);
 
     setLoading(false);
     if (error) {
@@ -141,7 +148,14 @@ function CreateTeamDialog({ onTeamCreated }: { onTeamCreated: () => void }) {
   );
 }
 
-function TeamCard({ team, agents, organizations, onTeamUpdated }: { team: any; agents: any[]; organizations: any[]; onTeamUpdated: () => void }) {
+interface TeamCardProps {
+  team: Team;
+  agents: TeamMember[];
+  organizations: Organization[];
+  onTeamUpdated: () => void;
+}
+
+function TeamCard({ team, agents, organizations, onTeamUpdated }: TeamCardProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -150,10 +164,12 @@ function TeamCard({ team, agents, organizations, onTeamUpdated }: { team: any; a
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const name = formData.get("name") as string;
-    const description = formData.get("description") as string;
+    const params: UpdateTeamParams = {
+      name: formData.get("name") as string,
+      description: formData.get("description") as string
+    };
 
-    const { error } = await updateTeamAction(team.id, { name, description });
+    const { error } = await updateTeamAction(team.id, params);
 
     setLoading(false);
     if (error) {
@@ -221,13 +237,13 @@ function TeamCard({ team, agents, organizations, onTeamUpdated }: { team: any; a
     }
   }
 
-  const teamMembers = team.members?.map((m: any) => m.user) || [];
-  const teamOrganizations = team.organizations?.map((o: any) => o.organization) || [];
+  const teamMembers = team.members?.map((m) => m) || [];
+  const teamOrganizations = team.organizations || [];
   const availableAgents = agents.filter(
-    (agent) => !teamMembers.find((m: any) => m.id === agent.id)
+    (agent) => !teamMembers.find((m) => m.id === agent.id)
   );
   const availableOrganizations = organizations.filter(
-    (org) => !teamOrganizations.find((o: any) => o.id === org.id)
+    (org) => !teamOrganizations.find((o) => o.id === org.id)
   );
 
   return (
@@ -248,33 +264,29 @@ function TeamCard({ team, agents, organizations, onTeamUpdated }: { team: any; a
               <DialogHeader>
                 <DialogTitle>Edit Team</DialogTitle>
                 <DialogDescription>
-                  Update team information.
+                  Update team details and manage members.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleEdit} className="space-y-4">
                 <div>
                   <Label htmlFor="name">Team Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
+                  <Input 
+                    id="name" 
+                    name="name" 
                     defaultValue={team.name}
-                    required
+                    required 
                   />
                 </div>
                 <div>
                   <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    name="description"
+                  <Textarea 
+                    id="description" 
+                    name="description" 
                     defaultValue={team.description || ""}
                   />
                 </div>
                 <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setEditOpen(false)}
-                  >
+                  <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={loading}>
@@ -284,8 +296,8 @@ function TeamCard({ team, agents, organizations, onTeamUpdated }: { team: any; a
               </form>
             </DialogContent>
           </Dialog>
-          <Button
-            variant="destructive"
+          <Button 
+            variant="destructive" 
             size="sm"
             onClick={handleDelete}
           >
@@ -295,82 +307,65 @@ function TeamCard({ team, agents, organizations, onTeamUpdated }: { team: any; a
       </div>
 
       <div>
-        <h4 className="text-sm font-medium mb-2">Team Members</h4>
-        <div className="space-y-2">
-          {teamMembers.map((member: any) => (
-            <div
-              key={member.id}
-              className="flex items-center justify-between p-2 bg-muted rounded-lg"
-            >
-              <div>
-                <div className="font-medium">{member.full_name}</div>
-                <div className="text-sm text-muted-foreground">
-                  {member.role}
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
+        <h4 className="font-medium mb-2">Team Members</h4>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {teamMembers.map((member) => (
+            <Badge key={member.id} variant="secondary">
+              {member.full_name}
+              <button
                 onClick={() => handleRemoveMember(member.id)}
+                className="ml-2 hover:text-destructive"
               >
-                Remove
-              </Button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h4 className="text-sm font-medium mb-2">Add Team Member</h4>
-        <div className="flex flex-wrap gap-2">
-          {availableAgents.map((agent) => (
-            <Badge
-              key={agent.id}
-              variant="outline"
-              className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-              onClick={() => handleAddMember(agent.id)}
-            >
-              {agent.full_name}
+                ×
+              </button>
             </Badge>
           ))}
         </div>
-      </div>
-
-      <div>
-        <h4 className="text-sm font-medium mb-2">Client Organizations</h4>
-        <div className="space-y-2">
-          {teamOrganizations.map((org: any) => (
-            <div
-              key={org.id}
-              className="flex items-center justify-between p-2 bg-muted rounded-lg"
-            >
-              <div className="font-medium">{org.name}</div>
+        {availableAgents.length > 0 && (
+          <div className="flex gap-2">
+            {availableAgents.map((agent) => (
               <Button
-                variant="ghost"
+                key={agent.id}
+                variant="outline"
                 size="sm"
-                onClick={() => handleRemoveOrganization(org.id)}
+                onClick={() => handleAddMember(agent.id)}
               >
-                Remove
+                + {agent.full_name}
               </Button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
-        <h4 className="text-sm font-medium mb-2">Add Client Organization</h4>
-        <div className="flex flex-wrap gap-2">
-          {availableOrganizations.map((org) => (
-            <Badge
-              key={org.id}
-              variant="outline"
-              className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-              onClick={() => handleAddOrganization(org.id)}
-            >
+        <h4 className="font-medium mb-2">Organizations</h4>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {teamOrganizations.map((org) => (
+            <Badge key={org.id} variant="secondary">
               {org.name}
+              <button
+                onClick={() => handleRemoveOrganization(org.id)}
+                className="ml-2 hover:text-destructive"
+              >
+                ×
+              </button>
             </Badge>
           ))}
         </div>
+        {availableOrganizations.length > 0 && (
+          <div className="flex gap-2">
+            {availableOrganizations.map((org) => (
+              <Button
+                key={org.id}
+                variant="outline"
+                size="sm"
+                onClick={() => handleAddOrganization(org.id)}
+              >
+                + {org.name}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

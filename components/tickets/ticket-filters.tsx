@@ -10,9 +10,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
 import { getWorkspaceSettings } from "@/app/actions/workspace-settings";
 import type { TicketStatus as WorkspaceTicketStatus } from "@/types/workspace-settings";
+import { AuthService } from "@/services/auth";
+import { useToast } from "@/components/ui/use-toast";
+import { SupabaseService } from "@/services/supabase";
 
 interface Agent {
   id: string;
@@ -57,6 +59,7 @@ export function TicketFilters({ onFilterChange }: TicketFiltersProps) {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [workspaceStatuses, setWorkspaceStatuses] = useState<WorkspaceTicketStatus[]>([]);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     search: '',
     timePeriod: '7days',
@@ -66,62 +69,163 @@ export function TicketFilters({ onFilterChange }: TicketFiltersProps) {
     priority: 'all',
     customer_id: 'all'
   });
-  const supabase = createClient();
+  const { toast } = useToast();
 
   useEffect(() => {
     async function loadData() {
-      // Load workspace settings
-      const settings = await getWorkspaceSettings();
-      if (settings?.ticket_statuses) {
-        setWorkspaceStatuses(settings.ticket_statuses);
-      }
+      try {
+        // Get current user and check role
+        const { user, error: authError } = await AuthService.getCurrentUser();
+        if (authError || !user?.profile) {
+          toast({
+            title: "Error",
+            description: "Failed to authenticate user",
+            variant: "destructive",
+          });
+          return;
+        }
 
-      // Load agents
-      const { data: agentsData } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('role', 'agent');
-      
-      if (agentsData) {
-        setAgents(agentsData);
-      }
+        setUserRole(user.profile.role);
 
-      // Load organizations
-      const { data: orgsData } = await supabase
-        .from('organizations')
-        .select('id, name')
-        .order('name');
-      
-      if (orgsData) {
-        setOrganizations(orgsData);
-      }
+        // Load workspace settings
+        const settings = await getWorkspaceSettings();
+        if (settings?.ticket_statuses) {
+          setWorkspaceStatuses(settings.ticket_statuses);
+        }
 
-      // Load customers
-      const { data: customersData } = await supabase
-        .from('profiles')
-        .select('id, full_name, organization:organizations!profiles_organization_id_fkey!inner(name)')
-        .eq('role', 'customer')
-        .order('full_name')
-        .returns<CustomerResponse[]>();
-      
-      if (customersData) {
-        const formattedCustomers: Customer[] = customersData.map(customer => ({
-          id: customer.id,
-          full_name: customer.full_name,
-          organization: customer.organization
-        }));
-        setCustomers(formattedCustomers);
+        const supabase = SupabaseService.createAnonymousClient();
+
+        // Load agents
+        const { data: agentsData, error: agentsError } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .eq('role', 'agent');
+        
+        if (agentsError) {
+          toast({
+            title: "Error",
+            description: "Failed to load agents",
+            variant: "destructive",
+          });
+        } else if (agentsData) {
+          setAgents(agentsData);
+        }
+
+        // Only load organizations and customers if user is an agent or admin
+        if (user.profile.role !== 'customer') {
+          // Load organizations
+          const { data: orgsData, error: orgsError } = await supabase
+            .from('organizations')
+            .select('id, name')
+            .order('name');
+          
+          if (orgsError) {
+            toast({
+              title: "Error",
+              description: "Failed to load organizations",
+              variant: "destructive",
+            });
+          } else if (orgsData) {
+            setOrganizations(orgsData);
+          }
+
+          // Load customers
+          const { data: customersData, error: customersError } = await supabase
+            .from('profiles')
+            .select('id, full_name, organization:organizations!profiles_organization_id_fkey!inner(name)')
+            .eq('role', 'customer')
+            .order('full_name')
+            .returns<CustomerResponse[]>();
+          
+          if (customersError) {
+            toast({
+              title: "Error",
+              description: "Failed to load customers",
+              variant: "destructive",
+            });
+          } else if (customersData) {
+            const formattedCustomers: Customer[] = customersData.map((customer: CustomerResponse) => ({
+              id: customer.id,
+              full_name: customer.full_name,
+              organization: customer.organization
+            }));
+            setCustomers(formattedCustomers);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load filter data",
+          variant: "destructive",
+        });
       }
     }
 
     loadData();
-  }, []);
+  }, [toast]);
 
   const handleFilterChange = (key: string, value: string) => {
     const newFilters = { ...filters, [key]: value };
     setFilters(newFilters);
     onFilterChange?.(newFilters);
   };
+
+  // If user is a customer, show limited filters
+  if (userRole === 'customer') {
+    return (
+      <div className="grid grid-cols-[1fr,100px,100px] gap-4">
+        {/* Title/Search */}
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
+          <Input 
+            className="pl-9" 
+            placeholder="Search tickets..." 
+            value={filters.search}
+            onChange={(e) => handleFilterChange('search', e.target.value)}
+          />
+        </div>
+
+        {/* Status */}
+        <Select
+          value={filters.status}
+          onValueChange={(value) => handleFilterChange('status', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            {workspaceStatuses.map((status) => (
+              <SelectItem 
+                key={status.name} 
+                value={status.name}
+                style={{ color: status.color }}
+              >
+                {status.display}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Priority */}
+        <Select
+          value={filters.priority}
+          onValueChange={(value) => handleFilterChange('priority', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Priority" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Priority</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="low">Low</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-[1fr,200px,200px,200px,100px,100px] gap-4">
