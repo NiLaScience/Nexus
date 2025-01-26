@@ -4,7 +4,6 @@ import type { NextRequest } from 'next/server';
 import { getSupabaseConfig } from '@/utils/env';
 
 // List of public routes that don't require authentication
-const publicRoutes = ['/sign-in', '/sign-up', '/forgot-password', '/reset-password', '/auth/callback'];
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();

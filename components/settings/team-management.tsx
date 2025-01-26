@@ -96,9 +96,18 @@ function CreateTeamDialog({ onTeamCreated }: CreateTeamDialogProps) {
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
+    const name = formData.get("name") as string;
+    const description = formData.get("description") as string;
+
+    if (!name) {
+      toast.error("Team name is required");
+      setLoading(false);
+      return;
+    }
+
     const params: UpdateTeamParams = {
-      name: formData.get("name") as string,
-      description: formData.get("description") as string
+      name,
+      description
     };
 
     const { error } = await createTeamAction(params);
@@ -164,9 +173,18 @@ function TeamCard({ team, agents, organizations, onTeamUpdated }: TeamCardProps)
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
+    const name = formData.get("name") as string;
+    const description = formData.get("description") as string;
+
+    if (!name) {
+      toast.error("Team name is required");
+      setLoading(false);
+      return;
+    }
+
     const params: UpdateTeamParams = {
-      name: formData.get("name") as string,
-      description: formData.get("description") as string
+      name,
+      description
     };
 
     const { error } = await updateTeamAction(team.id, params);

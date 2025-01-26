@@ -11,9 +11,10 @@ import { useEffect, useState } from "react";
 import { getProfileAction } from "@/app/actions/profile";
 import { useSearchParams } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { Profile } from '@/types/team';
 
 export default function SettingsPage() {
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const message = searchParams.get('message');
@@ -21,7 +22,7 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadProfile() {
       const { profile: userProfile } = await getProfileAction();
-      setProfile(userProfile);
+      setProfile(userProfile || null);
       setLoading(false);
     }
     loadProfile();

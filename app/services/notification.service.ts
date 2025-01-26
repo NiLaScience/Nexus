@@ -1,6 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '@/services/supabase';
-import { AuthService } from '@/services/auth';
 import { Database } from '@/lib/database.types';
 
 export type Notification = Database['public']['Tables']['notifications']['Row'] & {

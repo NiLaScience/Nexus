@@ -41,7 +41,7 @@ export function CategoryDialog() {
       const result = await FormService.handleSubmission({
         formData,
         schema: categorySchema,
-        onSuccess: async (data) => {
+        onSuccess: async () => {
           await createCategory(formData);
           toast({
             title: 'Success',

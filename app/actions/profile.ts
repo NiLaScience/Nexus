@@ -3,7 +3,6 @@
 import { revalidateTag, revalidatePath } from "next/cache";
 import { SupabaseService } from "@/services/supabase";
 import { AuthService } from "@/services/auth";
-import type { Profile } from "@/types/team";
 
 export type ProfileUpdateData = {
   full_name: string;

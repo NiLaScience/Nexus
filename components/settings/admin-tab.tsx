@@ -21,8 +21,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, Wrench, MessageSquare, Settings } from "lucide-react";
 import Link from "next/link";
 
+interface Skill {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export function AdminTab() {
-  const [skills, setSkills] = useState<any[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function fetchSkills() {
@@ -102,7 +108,7 @@ export function AdminTab() {
               <div>
                 <h2 className="text-lg font-medium">Response Templates</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Manage your team's response templates for quick and consistent replies
+                  Manage your team&apos;s response templates for quick and consistent replies
                 </p>
               </div>
               <Button asChild>

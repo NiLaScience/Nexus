@@ -23,11 +23,35 @@ export function TeamTab() {
     try {
       const { members: teamMembers, error } = await getTeamMembersAction();
       if (error) throw error;
-      setMembers(teamMembers || []);
+      
+      // Convert response to TeamMember type
+      const convertedMembers: TeamMember[] = teamMembers.map(member => ({
+        id: member.id,
+        full_name: member.full_name,
+        email: member.email,
+        role: member.role,
+        is_active: member.is_active,
+        organization_id: member.organization_id
+      }));
+      
+      setMembers(convertedMembers);
 
       // Get current user's profile
       const { profile: userProfile } = await getProfileAction();
-      setProfile(userProfile);
+      if (userProfile && 'id' in userProfile) {
+        // Convert Profile to TeamMember
+        const teamMember: TeamMember = {
+          id: userProfile.id,
+          full_name: userProfile.full_name || '',
+          email: userProfile.email || 'no-email',
+          role: userProfile.role || 'customer',
+          is_active: userProfile.is_active ?? true, // Default to true if not provided
+          organization_id: userProfile.organization_id
+        };
+        setProfile(teamMember);
+      } else {
+        setProfile(null);
+      }
     } catch (err) {
       setError((err as Error).message);
       toast.error("Failed to load team members");

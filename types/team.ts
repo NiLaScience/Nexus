@@ -5,6 +5,8 @@ type TeamRow = Database['public']['Tables']['teams']['Row'];
 
 export type Profile = Database['public']['Tables']['profiles']['Row'] & {
   organization_id?: string | null;
+  email?: string;
+  is_active?: boolean;
 };
 
 export interface Team extends TeamRow {
@@ -42,8 +44,8 @@ export interface AddTeamMemberParams {
 }
 
 export interface UpdateTeamParams {
-  name?: string;
-  description?: string | null;
+  name: string;
+  description?: string;
   members?: string[];
   organizations?: string[];
 } 

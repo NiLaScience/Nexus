@@ -66,7 +66,7 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
   const [tags, setTags] = useState<string[]>(initialTags);
   const [tagInput, setTagInput] = useState("");
   const [isEditingTags, setIsEditingTags] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     const initializeComponent = async () => {
@@ -122,10 +122,6 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
     return status ? status.display : statusName;
   };
 
-  const getStatusColor = (statusName: string) => {
-    const status = workspaceStatuses.find(s => s.name === statusName);
-    return status ? status.color : '#808080';
-  };
 
   const handleStatusChange = async (newStatus: string) => {
     setPendingStatus(newStatus);
@@ -268,21 +264,7 @@ export function TicketHeader({ ticketId, title, created, tags: initialTags, stat
     }
   };
 
-  const getPriorityClass = (priority: string) => {
-    switch (priority) {
-      case "high":
-      case "urgent":
-        return 'bg-destructive/10 text-destructive';
-      case "medium":
-        return 'bg-warning/10 text-warning';
-      case "low":
-        return 'bg-muted/10 text-muted-foreground';
-      default:
-        return 'bg-muted/10 text-muted-foreground';
-    }
-  };
 
-  const isCustomer = userRole === 'customer';
 
   return (
     <div className="flex flex-col gap-4 p-4 border-b">

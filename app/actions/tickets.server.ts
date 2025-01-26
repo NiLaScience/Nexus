@@ -3,6 +3,7 @@
 import { SupabaseService } from "@/services/supabase";
 import { AuthService } from "@/services/auth";
 import { revalidatePath } from "next/cache";
+import type { TeamMember } from "@/types/team";
 
 export async function updateTicketAction(
   ticketId: string,
@@ -113,21 +114,23 @@ export async function updateTicketAction(
   }
 }
 
-export async function getAgentsAction() {
+export async function getAgentsAction(): Promise<{ agents: TeamMember[]; error: string | null }> {
   try {
     const supabase = await SupabaseService.createClientWithCookies();
-
     const { data: agents, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, role")
-      .in("role", ["agent", "admin"]);
+      .from('profiles')
+      .select('id, full_name, email, role, is_active, organization_id')
+      .in('role', ['agent', 'admin'])
+      .order('full_name');
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
-    return { agents, error: null };
+    return { agents: agents || [], error: null };
   } catch (error) {
-    console.error("Error fetching agents:", error);
-    return { agents: [], error: (error as Error).message };
+    console.error('Error fetching agents:', error);
+    return { agents: [], error: 'Failed to fetch agents' };
   }
 }
 

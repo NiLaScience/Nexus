@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, X, Loader2, Paperclip } from "lucide-react";
+import { PlusCircle, X, Paperclip } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -20,14 +20,6 @@ import { createTicketAction } from "@/app/actions/tickets/create.server";
 import { useToast } from "@/components/ui/use-toast";
 import { FormMessage } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
-import type { 
-  TicketFormProps, 
-  TicketFormState, 
-  TicketTag, 
-  TicketPriority,
-  TicketCustomFieldValue
-} from "@/types/ticket";
-import { ticketSchema } from '@/app/actions/tickets/schemas';
 import type { TicketInput } from '@/app/actions/tickets/schemas';
 
 export function TicketForm() {
@@ -36,7 +28,7 @@ export function TicketForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tagInput, setTagInput] = useState('');
   const [workspaceSettings, setWorkspaceSettings] = useState<any>(null);
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [, setAvailableTags] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
   const [formState, setFormState] = useState<TicketInput>({

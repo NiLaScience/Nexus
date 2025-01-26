@@ -12,7 +12,6 @@ import { getTicketEventsAction } from "@/app/actions/tickets/events.server";
 import { getRelatedTicketsAction } from "@/app/actions/tickets/related.server";
 import { withAuth } from "@/components/hoc/with-auth";
 import type { AuthUser } from "@/services/auth";
-import type { TicketTag } from "@/types/ticket";
 
 interface PageProps {
   params: Promise<{ id: string }>;

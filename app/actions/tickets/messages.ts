@@ -50,7 +50,7 @@ export interface DeleteMessageParams {
 export interface DeleteMessageResponse {
   success: boolean;
   error: string | null;
-};
+}
 
 export async function addMessageAction({ ticketId, content, isInternal = false }: AddMessageParams) {
   const supabase = await createClient();
@@ -149,4 +149,20 @@ export async function getInternalNotesAction(ticketId: string) {
 
 export async function addInternalNoteAction({ ticketId, content }: AddMessageParams) {
   return addMessageAction({ ticketId, content, isInternal: true });
+}
+
+export async function getTicketMessagesAction(ticketId: string) {
+  const supabase = await createClient();
+
+  const { data: messages, error } = await supabase
+    .from('ticket_messages')
+    .select('*')
+    .eq('ticket_id', ticketId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  return { messages }
 } 

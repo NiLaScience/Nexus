@@ -1,6 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 import type { Database } from '@/types/supabase';
 import { getSupabaseConfig, isDevelopment } from '@/utils/env';
 
@@ -9,130 +8,39 @@ import { getSupabaseConfig, isDevelopment } from '@/utils/env';
  */
 export class SupabaseService {
   /**
-   * Create a Supabase client with cookie handling
-   */
-  static async createClientWithCookies() {
-    const { url, anonKey } = getSupabaseConfig();
-    const cookieStore = await cookies();
-
-    return createServerClient<Database>(url, anonKey, {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch (error) {
-            if (isDevelopment()) {
-              console.error('Error setting cookie:', error);
-            }
-          }
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.delete({ name, ...options });
-          } catch (error) {
-            if (isDevelopment()) {
-              console.error('Error removing cookie:', error);
-            }
-          }
-        },
-      },
-    });
-  }
-
-  /**
-   * Create a Supabase client with service role privileges
+   * Create a Supabase client for server-side operations
    */
   static createServiceClient() {
     const { url, serviceRoleKey } = getSupabaseConfig();
-    return createSupabaseClient<Database>(url, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    return createSupabaseClient<Database>(url, serviceRoleKey);
   }
 
   /**
-   * Create a Supabase client with service role privileges and cookie handling
-   */
-  static async createServiceClientWithCookies() {
-    const { url, serviceRoleKey } = getSupabaseConfig();
-    const cookieStore = await cookies();
-
-    return createServerClient<Database>(url, serviceRoleKey, {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch (error) {
-            if (isDevelopment()) {
-              console.error('Error setting cookie:', error);
-            }
-          }
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.delete({ name, ...options });
-          } catch (error) {
-            if (isDevelopment()) {
-              console.error('Error removing cookie:', error);
-            }
-          }
-        },
-      },
-    });
-  }
-
-  /**
-   * Create a Supabase client for anonymous access
+   * Create an anonymous client for client-side operations
    */
   static createAnonymousClient() {
     const { url, anonKey } = getSupabaseConfig();
-    return createSupabaseClient<Database>(url, anonKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    return createSupabaseClient<Database>(url, anonKey);
   }
 
   /**
-   * Create a Supabase client for anonymous access with cookie handling
+   * Create a server client with cookie handling - only use in App Router server components
    */
-  static async createAnonymousClientWithCookies() {
+  static async createServerClient(cookieStore: { get: (name: string) => string | undefined }) {
     const { url, anonKey } = getSupabaseConfig();
-    const cookieStore = await cookies();
 
     return createServerClient<Database>(url, anonKey, {
       cookies: {
         get(name: string) {
-          return cookieStore.get(name)?.value;
+          return cookieStore.get(name);
         },
         set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch (error) {
-            if (isDevelopment()) {
-              console.error('Error setting cookie:', error);
-            }
-          }
+          // This is handled by the middleware
         },
         remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.delete({ name, ...options });
-          } catch (error) {
-            if (isDevelopment()) {
-              console.error('Error removing cookie:', error);
-            }
-          }
-        },
-      },
+          // This is handled by the middleware
+        }
+      }
     });
   }
 } 

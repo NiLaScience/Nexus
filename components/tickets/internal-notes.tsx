@@ -35,7 +35,7 @@ export function InternalNotes({ ticketId, initialNotes }: InternalNotesProps) {
   const [noteText, setNoteText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [, setUserRole] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 

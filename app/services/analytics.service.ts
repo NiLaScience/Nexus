@@ -57,11 +57,6 @@ export class AnalyticsService {
     this.supabase = await createClient();
   }
 
-  private async ensureClient() {
-    if (!this.supabase) {
-      await this.initializeClient();
-    }
-  }
 
   private calculateDateRange(timePeriod: string) {
     const now = new Date();
@@ -131,7 +126,7 @@ export class AnalyticsService {
     return data;
   }
 
-  private async getMessages(startDate: Date, filters?: AnalyticsFilters) {
+  private async getMessages(_startDate: Date, filters?: AnalyticsFilters) {
     let query = this.supabase
       .from("ticket_messages")
       .select(`
@@ -282,7 +277,7 @@ export class AnalyticsService {
     }));
   }
 
-  public async getAnalyticsData(timePeriod: string = "7d", filters?: AnalyticsFilters) {
+  public async getAnalyticsData(timePeriod = "7d", filters?: AnalyticsFilters) {
     try {
       // Calculate date ranges
       const { startDate, now } = this.calculateDateRange(timePeriod);

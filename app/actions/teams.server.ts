@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import type { Organization } from "@/types/team";
 
 export type TeamData = {
   id: string;
@@ -199,19 +200,21 @@ export async function removeTeamOrganizationAction(teamId: string, organizationI
   }
 }
 
-export async function getOrganizationsAction() {
+export async function getOrganizationsAction(): Promise<{ organizations: Organization[]; error: string | null }> {
   try {
     const supabase = await createClient();
-
     const { data: organizations, error } = await supabase
-      .from("organizations")
-      .select("id, name");
+      .from('organizations')
+      .select('id, name, created_at, updated_at')
+      .order('name');
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
-    return { organizations, error: null };
+    return { organizations: organizations || [], error: null };
   } catch (error) {
-    console.error("Error fetching organizations:", error);
-    return { organizations: [], error: (error as Error).message };
+    console.error('Error fetching organizations:', error);
+    return { organizations: [], error: 'Failed to fetch organizations' };
   }
 } 

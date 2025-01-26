@@ -1,8 +1,9 @@
 'use server';
 
-import { analyticsService } from '@/app/services/analytics.service';
+import { AnalyticsService } from '@/app/services/analytics.service';
 export type { AnalyticsMetrics, TicketTrend, StatusDistribution } from '@/app/services/analytics.service';
 
-export async function getAnalyticsDataAction(timePeriod: string = "7d", filters?: { organization_id?: string; team_id?: string }) {
-  return analyticsService.getAnalyticsData(timePeriod, filters);
+export async function getAnalyticsDataAction(timePeriod = "7d") {
+  const analyticsService = new AnalyticsService();
+  return analyticsService.getAnalyticsData(timePeriod);
 } 

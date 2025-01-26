@@ -2,55 +2,26 @@
 
 import { SupabaseService } from "@/services/supabase";
 import { AuthService } from "@/services/auth";
+import type { Attachment } from "@/types/ticket";
 
-interface DBMessage {
+interface DBAttachment {
   id: string;
-  author: {
+  message_id: string;
+  filename: string;
+  content_type: string;
+  size: number;
+  storage_path: string;
+  created_at: string;
+  message: {
     id: string;
-    full_name: string | null;
-    role: string;
-  };
-  attachments: {
-    id: string;
-    name: string;
-    size: number;
-    mime_type: string;
-    storage_path: string;
+    content: string;
     created_at: string;
-  }[];
-}
-
-export type Attachment = {
-  id: string;
-  message_id: string;
-  name: string;
-  size: number;
-  mime_type: string;
-  storage_path: string;
-  created_at: string;
-  author: {
-    id: string;
-    full_name: string | null;
-    role: string;
-  };
-};
-
-type RawAttachment = {
-  id: string;
-  message_id: string;
-  name: string;
-  size: number;
-  mime_type: string;
-  storage_path: string;
-  created_at: string;
-  author: {
     author: {
       id: string;
       full_name: string | null;
-      role: string;
-    };
-  };
-};
+    } | null;
+  } | null;
+}
 
 export async function getMessageAttachmentsAction(messageId: string) {
   try {
@@ -66,31 +37,44 @@ export async function getMessageAttachmentsAction(messageId: string) {
       .select(`
         id,
         message_id,
-        name,
+        filename:name,
+        content_type:mime_type,
         size,
-        mime_type,
         storage_path,
         created_at,
-        author:ticket_messages!message_attachments_message_id_fkey(
+        message:ticket_messages!message_attachments_message_id_fkey(
+          id,
+          content,
+          created_at,
           author:profiles!ticket_messages_author_id_fkey(
             id,
-            full_name,
-            role
+            full_name
           )
         )
       `)
       .eq('message_id', messageId)
-      .returns<RawAttachment[]>();
+      .returns<DBAttachment[]>();
 
     if (error) throw error;
 
-    // Transform the nested author data structure
-    const transformedAttachments = attachments.map(attachment => ({
-      ...attachment,
-      author: attachment.author.author
+    // Convert DB response to Attachment type
+    const transformedAttachments: Attachment[] = attachments.map(item => ({
+      id: item.id,
+      message_id: item.message_id,
+      filename: item.filename,
+      content_type: item.content_type,
+      size: item.size,
+      storage_path: item.storage_path,
+      created_at: item.created_at,
+      message: item.message ? {
+        id: item.message.id,
+        content: item.message.content,
+        created_at: item.message.created_at,
+        author: item.message.author || undefined
+      } : undefined
     }));
 
-    return { attachments: transformedAttachments as Attachment[] };
+    return { attachments: transformedAttachments };
   } catch (error) {
     console.error('Error fetching message attachments:', error);
     return { error: 'Failed to fetch attachments' };
@@ -104,7 +88,6 @@ export async function uploadAttachmentAction(messageId: string, file: File) {
       throw new Error(authError || 'Not authenticated');
     }
 
-    const supabase = await SupabaseService.createClientWithCookies();
     const serviceClient = await SupabaseService.createServiceClient();
 
     // Get the ticket ID for the message to use in storage path
@@ -229,53 +212,61 @@ export async function deleteAttachmentAction(attachmentId: string) {
   }
 }
 
-export async function getTicketAttachmentsAction(ticketId: string) {
+export async function getTicketAttachmentsAction(ticketId: string): Promise<{ attachments: Attachment[]; error: string | null }> {
   try {
-    const { user, error: authError } = await AuthService.getCurrentUser();
-    if (authError || !user?.profile) {
-      throw new Error(authError || 'Not authenticated');
-    }
-
-    if (!ticketId) {
-      throw new Error('No ticket ID provided');
-    }
-
     const supabase = await SupabaseService.createClientWithCookies();
-
-    const { data: messages, error } = await supabase
-      .from('ticket_messages')
+    const { data, error } = await supabase
+      .from('message_attachments')
       .select(`
         id,
-        author:profiles!ticket_messages_author_id_fkey(
+        message_id,
+        filename,
+        content_type,
+        size,
+        storage_path,
+        created_at,
+        message:ticket_messages!inner (
           id,
-          full_name,
-          role
-        ),
-        attachments:message_attachments(
-          id,
-          name,
-          size,
-          mime_type,
-          storage_path,
-          created_at
+          content,
+          created_at,
+          author:profiles!inner (
+            id,
+            full_name
+          )
         )
       `)
-      .eq('ticket_id', ticketId)
-      .returns<DBMessage[]>();
+      .eq('message_id', ticketId)
+      .returns<DBAttachment[]>();
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
-    // Flatten the messages array to get all attachments
-    const attachments = messages.flatMap(message => 
-      message.attachments.map(attachment => ({
-        ...attachment,
-        author: message.author
-      }))
-    );
+    // Convert DB response to Attachment type
+    const attachments: Attachment[] = (data || []).map(item => ({
+      id: item.id,
+      message_id: item.message_id,
+      filename: item.filename,
+      content_type: item.content_type,
+      size: item.size,
+      storage_path: item.storage_path,
+      created_at: item.created_at,
+      message: item.message ? {
+        id: item.message.id,
+        content: item.message.content,
+        created_at: item.message.created_at,
+        author: item.message.author || undefined
+      } : undefined
+    }));
 
-    return { attachments };
+    return { attachments, error: null };
   } catch (error) {
-    console.error('Error fetching ticket attachments:', error);
-    return { error: error instanceof Error ? error.message : 'Failed to fetch attachments' };
+    console.error('Error fetching attachments:', error);
+    return { attachments: [], error: 'Failed to fetch attachments' };
   }
+}
+
+export async function unsubscribeFromMessages(channel: any) {
+  const supabase = await SupabaseService.createClientWithCookies();
+  await supabase.removeChannel(channel);
 } 

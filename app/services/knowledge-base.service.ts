@@ -1,6 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { SupabaseService } from '@/services/supabase';
-import { AuthService } from '@/services/auth';
+import { createServerSupabaseClient } from '@/utils/supabase/server';
 import type { Article } from './article.service';
 
 export class KnowledgeBaseService {
@@ -12,7 +11,7 @@ export class KnowledgeBaseService {
 
   private async initializeClient() {
     if (!this.supabase) {
-      this.supabase = await SupabaseService.createClientWithCookies();
+      this.supabase = await createServerSupabaseClient();
     }
   }
 
@@ -82,22 +81,9 @@ export class KnowledgeBaseService {
     return articles;
   }
 
-  async getRelatedArticles(articleId: string, limit: number = 3): Promise<Article[]> {
+  async getArticlesByIds(articleIds: string[]): Promise<Article[]> {
     await this.ensureClient();
 
-    // First get the category of the current article
-    const { data: currentArticle, error: articleError } = await this.supabase
-      .from('articles')
-      .select('category_id')
-      .eq('id', articleId)
-      .single();
-
-    if (articleError) {
-      console.error('Error fetching current article:', articleError);
-      throw new Error('Failed to fetch current article');
-    }
-
-    // Then get other articles in the same category
     const { data: articles, error } = await this.supabase
       .from('articles')
       .select(`
@@ -114,10 +100,40 @@ export class KnowledgeBaseService {
           name
         )
       `)
-      .eq('category_id', currentArticle.category_id)
+      .in('id', articleIds)
+      .limit(10)
+      .order('view_count', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching articles by IDs:', error);
+      throw new Error('Failed to fetch articles by IDs');
+    }
+
+    return articles;
+  }
+
+  async getRelatedArticles(articleId: string): Promise<Article[]> {
+    await this.ensureClient();
+
+    const { data: articles, error } = await this.supabase
+      .from('articles')
+      .select(`
+        id,
+        title,
+        content,
+        view_count,
+        upvote_count,
+        downvote_count,
+        created_at,
+        updated_at,
+        categories (
+          id,
+          name
+        )
+      `)
       .neq('id', articleId)
-      .order('view_count', { ascending: false })
-      .limit(limit);
+      .limit(5)
+      .order('view_count', { ascending: false });
 
     if (error) {
       console.error('Error fetching related articles:', error);
@@ -127,7 +143,7 @@ export class KnowledgeBaseService {
     return articles;
   }
 
-  async findSimilarArticles(query: string, limit: number = 5): Promise<Article[]> {
+  async findSimilarArticles(query: string, limit = 5): Promise<Article[]> {
     await this.ensureClient();
 
     // Use full text search if available, otherwise fallback to ILIKE

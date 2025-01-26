@@ -1,6 +1,5 @@
 import { signOutAction } from "@/app/actions/auth";
 import { AuthService } from "@/services/auth";
-import type { Profile } from "@/types/team";
 
 export default async function AuthButton() {
   const { user } = await AuthService.getCurrentUser();

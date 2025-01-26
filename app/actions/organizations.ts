@@ -6,9 +6,17 @@ import { cookies } from "next/headers";
 export async function getOrganizationsAction() {
   try {
     const cookieStore = await cookies();
+    
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error('Missing required environment variables');
+    }
+    
     const serviceClient = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      supabaseUrl,
+      serviceRoleKey,
       {
         auth: {
           persistSession: false,

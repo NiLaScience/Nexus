@@ -28,8 +28,8 @@ interface GetAttachmentsResult {
 }
 
 export class AttachmentService {
-  private static async getTicketId(messageId: string) {
-    const serviceClient = await SupabaseService.createServiceClientWithCookies();
+  static async getTicketId(messageId: string) {
+    const serviceClient = await SupabaseService.createServiceClient();
     const { data: message, error: messageError } = await serviceClient
       .from('ticket_messages')
       .select('ticket_id')
@@ -40,9 +40,9 @@ export class AttachmentService {
     return message.ticket_id;
   }
 
-  static async upload({ messageId, file, isTicketCreation = false }: UploadOptions): Promise<UploadResult> {
+  static async upload({ messageId, file }: UploadOptions): Promise<UploadResult> {
     try {
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = await SupabaseService.createServiceClient();
       const ticketId = await this.getTicketId(messageId);
 
       // Generate unique filename
@@ -91,7 +91,7 @@ export class AttachmentService {
 
   static async getDownloadUrl(storagePath: string): Promise<GetUrlResult> {
     try {
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = await SupabaseService.createServiceClient();
       const { data, error } = await serviceClient
         .storage
         .from('attachments')
@@ -107,7 +107,7 @@ export class AttachmentService {
 
   static async delete(attachmentId: string): Promise<DeleteResult> {
     try {
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = await SupabaseService.createServiceClient();
 
       // Get attachment details
       const { data: attachment, error: fetchError } = await serviceClient
@@ -144,7 +144,7 @@ export class AttachmentService {
 
   static async getTicketAttachments(ticketId: string): Promise<GetAttachmentsResult> {
     try {
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = await SupabaseService.createServiceClient();
       const { data, error } = await serviceClient
         .from('attachments')
         .select(`
@@ -169,7 +169,44 @@ export class AttachmentService {
 
       if (error) throw error;
 
-      return { attachments: data || [] };
+      type QueryResult = {
+        id: string;
+        filename: string;
+        storage_path: string;
+        content_type: string;
+        size: number;
+        created_at: string;
+        message: {
+          id: string;
+          content: string;
+          created_at: string;
+          author: {
+            id: string;
+            full_name: string;
+          }[];
+        }[];
+      };
+
+      const mappedAttachments: Attachment[] = ((data || []) as unknown as QueryResult[]).map(item => ({
+        id: item.id,
+        message_id: item.message[0]?.id || '',
+        filename: item.filename,
+        content_type: item.content_type,
+        size: item.size,
+        storage_path: item.storage_path,
+        created_at: item.created_at,
+        message: item.message[0] ? {
+          id: item.message[0].id,
+          content: item.message[0].content,
+          created_at: item.message[0].created_at,
+          author: item.message[0].author?.[0] ? {
+            id: item.message[0].author[0].id,
+            full_name: item.message[0].author[0].full_name
+          } : undefined
+        } : undefined
+      }));
+
+      return { attachments: mappedAttachments };
     } catch (error) {
       console.error('Error getting ticket attachments:', error);
       return { attachments: [], error: error instanceof Error ? error.message : 'Failed to get attachments' };
@@ -178,7 +215,7 @@ export class AttachmentService {
 
   static async getMessageAttachments(messageId: string): Promise<GetAttachmentsResult> {
     try {
-      const serviceClient = await SupabaseService.createServiceClientWithCookies();
+      const serviceClient = await SupabaseService.createServiceClient();
       const { data, error } = await serviceClient
         .from('attachments')
         .select()

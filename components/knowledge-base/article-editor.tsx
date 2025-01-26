@@ -55,7 +55,7 @@ export function ArticleEditor({ categories, article, workspaceId }: ArticleEdito
       const result = await FormService.handleSubmission({
         formData,
         schema: articleSchema,
-        onSuccess: async (data) => {
+        onSuccess: async () => {
           if (article) {
             await updateArticle(article.id, formData);
             toast({

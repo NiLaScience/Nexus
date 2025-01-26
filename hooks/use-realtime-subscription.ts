@@ -19,7 +19,7 @@ export function useRealtimeSubscription<T extends { [key: string]: any }>(
   onSubscriptionChange?: SubscriptionHandler<T>,
   enabled: boolean = true
 ) {
-  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
+  const [, setChannel] = useState<RealtimeChannel | null>(null);
   const [status, setStatus] = useState<REALTIME_SUBSCRIBE_STATES | null>(null);
   const supabase = createClient();
 

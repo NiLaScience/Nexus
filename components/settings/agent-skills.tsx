@@ -22,13 +22,24 @@ import {
 import { getSkillsAction, getAgentSkillsAction, addAgentSkillAction, removeAgentSkillAction, updateAgentSkillAction } from "@/app/actions/skills.server";
 import { toast } from "sonner";
 
+interface Skill {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface AgentSkill {
+  skill: Skill;
+  proficiency_level: 'beginner' | 'intermediate' | 'expert';
+}
+
 export function AgentSkills({ userId }: { userId: string }) {
-  const [skills, setSkills] = useState<any[]>([]);
-  const [agentSkills, setAgentSkills] = useState<any[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [agentSkills, setAgentSkills] = useState<AgentSkill[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function fetchData() {
+  const fetchData = async () => {
     try {
       const [skillsResult, agentSkillsResult] = await Promise.all([
         getSkillsAction(),
@@ -40,18 +51,18 @@ export function AgentSkills({ userId }: { userId: string }) {
       }
 
       setSkills(skillsResult.skills || []);
-      setAgentSkills(agentSkillsResult.agentSkills || []);
+      setAgentSkills((agentSkillsResult.agentSkills || []) as AgentSkill[]);
     } catch (err) {
       setError((err as Error).message);
       toast.error("Failed to load skills");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
     fetchData();
-  }, [userId]);
+  }, [userId, fetchData]);
 
   if (loading) {
     return <div>Loading skills...</div>;
@@ -62,7 +73,7 @@ export function AgentSkills({ userId }: { userId: string }) {
   }
 
   const availableSkills = skills.filter(
-    (skill) => !agentSkills.find((as: any) => as.skill.id === skill.id)
+    (skill) => !agentSkills.find((as) => as.skill.id === skill.id)
   );
 
   return (
@@ -77,7 +88,7 @@ export function AgentSkills({ userId }: { userId: string }) {
       </div>
 
       <div className="space-y-4">
-        {agentSkills.map((agentSkill: any) => (
+        {agentSkills.map((agentSkill) => (
           <div
             key={agentSkill.skill.id}
             className="flex items-center justify-between p-2 bg-muted rounded-lg"
@@ -128,7 +139,7 @@ function AddAgentSkillDialog({
   onSkillAdded 
 }: { 
   userId: string; 
-  availableSkills: any[];
+  availableSkills: Skill[];
   onSkillAdded: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -192,7 +203,7 @@ function AddAgentSkillDialog({
             <Label htmlFor="level">Proficiency Level</Label>
             <Select
               value={proficiencyLevel}
-              onValueChange={(value: any) => setProficiencyLevel(value)}
+              onValueChange={(value: 'beginner' | 'intermediate' | 'expert') => setProficiencyLevel(value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select level" />

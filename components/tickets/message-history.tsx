@@ -19,14 +19,12 @@ import { addMessageAction, getTicketMessagesAction } from "@/app/actions/tickets
 import { useToast } from "@/components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { uploadAttachmentAction, getAttachmentUrlAction } from "@/app/actions/tickets/attachments";
-import { SupabaseService } from "@/services/supabase";
 import { AuthService } from "@/services/auth";
 import { listTemplates, type ResponseTemplate } from "@/app/actions/response-templates";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { incrementUsageCount } from "@/app/actions/response-templates";
 import ReactMarkdown from 'react-markdown';
 import dynamic from 'next/dynamic';
-import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { RealtimeService } from '@/services/realtime';
 import { getMessageWithAttachmentsAction } from '@/app/actions/tickets/messages.server';
 

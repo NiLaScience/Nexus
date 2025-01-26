@@ -61,7 +61,9 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
     let reloadTimeout: NodeJS.Timeout;
 
     // Set up real-time subscription for both messages and attachments
-    const unsubscribe = RealtimeService.subscribeToTicketAttachments(
+    let unsubscribe: (() => void) | undefined;
+    
+    RealtimeService.subscribeToTicketAttachments(
       ticketId,
       () => {
         // Clear any existing timeout
@@ -69,12 +71,16 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
         // Set a new timeout to reload after a delay
         reloadTimeout = setTimeout(loadAttachments, 500);
       }
-    );
+    ).then(channel => {
+      unsubscribe = () => {
+        RealtimeService.unsubscribeFromMessages(channel);
+      };
+    });
 
     // Cleanup subscription and timeout
     return () => {
       if (reloadTimeout) clearTimeout(reloadTimeout);
-      unsubscribe();
+      if (unsubscribe) unsubscribe();
     };
   }, [ticketId, loadAttachments]);
 
@@ -87,7 +93,7 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
       // Create a temporary link and click it to trigger download
       const link = document.createElement('a');
       link.href = url;
-      link.download = attachment.name; // Set the download filename
+      link.download = attachment.filename; // Use filename instead of name
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -127,9 +133,9 @@ export function AttachmentsList({ ticketId }: AttachmentsListProps) {
                     <Paperclip className="w-4 h-4 text-muted-foreground" />
                   </div>
                   <div>
-                    <div className="font-medium text-sm">{attachment.name}</div>
+                    <div className="font-medium text-sm">{attachment.filename}</div>
                     <div className="text-xs text-muted-foreground">
-                      {formatFileSize(attachment.size)} • {attachment.author?.full_name || 'Unknown'} • {formatDistanceToNow(new Date(attachment.created_at), { addSuffix: true })}
+                      {formatFileSize(attachment.size)} • {attachment.message?.author?.full_name || 'Unknown'} • {formatDistanceToNow(new Date(attachment.created_at), { addSuffix: true })}
                     </div>
                   </div>
                 </div>
