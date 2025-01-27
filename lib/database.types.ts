@@ -6,9 +6,85 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type Database = {
+export interface Database {
   public: {
     Tables: {
+      embedding_queue: {
+        Row: {
+          id: string
+          content_type: 'ticket' | 'message' | 'article' | 'template'
+          content_id: string
+          operation: 'insert' | 'update' | 'delete'
+          processed: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          content_type: 'ticket' | 'message' | 'article' | 'template'
+          content_id: string
+          operation: 'insert' | 'update' | 'delete'
+          processed?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          content_type?: 'ticket' | 'message' | 'article' | 'template'
+          content_id?: string
+          operation?: 'insert' | 'update' | 'delete'
+          processed?: boolean
+          created_at?: string
+        }
+      }
+      embeddings: {
+        Row: {
+          id: string
+          content_type: 'ticket' | 'message' | 'article' | 'template'
+          content_id: string
+          content_text: string
+          embedding: number[] | null // 3072-dimensional vector for text-embedding-3-large
+          metadata: Json
+          embedding_model: string
+          created_by: string | null
+          workspace_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          content_type: 'ticket' | 'message' | 'article' | 'template'
+          content_id: string
+          content_text: string
+          embedding?: number[] | null // 3072-dimensional vector for text-embedding-3-large
+          metadata?: Json
+          embedding_model?: string
+          created_by?: string | null
+          workspace_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          content_type?: 'ticket' | 'message' | 'article' | 'template'
+          content_id?: string
+          content_text?: string
+          embedding?: number[] | null // 3072-dimensional vector for text-embedding-3-large
+          metadata?: Json
+          embedding_model?: string
+          created_by?: string | null
+          workspace_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "embeddings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       message_attachments: {
         Row: {
           created_at: string

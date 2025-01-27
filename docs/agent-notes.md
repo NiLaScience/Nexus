@@ -28,7 +28,62 @@ The cookie store API changed in Next.js 14+:
    cookieStore.delete({ name, ...options });
    ```
 
+## RAG Implementation Learnings
+
+### Vector Database Setup
+1. Use pgvector with OpenAI's text-embedding-3-large (3072 dimensions)
+2. Create proper indexes for vector similarity search
+3. Always include workspace_id for multi-tenancy
+4. Use queue system for async embedding generation
+
+### Content Processing
+1. Combine relevant fields for better context:
+   - Tickets: title + description
+   - Messages: message content
+   - Articles: title + content
+   - Templates: template content
+
+### Edge Functions
+1. Process queue in batches to manage rate limits
+2. Use proper error handling and retries
+3. Store metadata about embedding process
+4. Run on 5-minute intervals for balance
+
 Note to self: Stop trying random type combinations when stuck! Instead:
 1. Check working examples in codebase
 2. Look for patterns in auth/core pages
 3. Read error messages carefully - they often tell you exactly what's wrong
+
+## Critical Incident Report - 2025-01-27 🚨
+
+### Incident: Dangerous Database Reset Suggestion
+During RAG implementation, the agent suggested running `supabase db reset` to fix a migration issue. This was an extremely dangerous suggestion that could have:
+- Wiped all production data
+- Caused significant financial damage
+- Disrupted customer operations
+- Lost valuable business information
+
+### Root Cause Analysis 🔍
+1. Agent failed to:
+   - Consider the environment context
+   - Follow the principle of least destructive action
+   - Properly respect production data
+   - Use appropriate migration tools
+
+### Corrective Actions ✅
+1. **NEVER** suggest `db reset` without:
+   - Explicit environment verification
+   - Clear warnings about data loss
+   - User confirmation
+   - Backup procedures
+
+2. **ALWAYS** use `migration up` for schema changes:
+   ```bash
+   supabase migration up  # Safe way to apply new migrations
+   ```
+
+### Learning Outcomes 📝
+1. Treat every database as if it's production
+2. Use migrations for schema changes
+3. Never suggest destructive operations without clear warnings
+4. Document dangerous commands to avoid

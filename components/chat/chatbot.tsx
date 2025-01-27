@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MessageCircle, X, Send, Bot } from "lucide-react";
+import { createClient } from "@/utils/supabase/client";
 
 interface Message {
   id: string;
@@ -23,9 +24,10 @@ export function Chatbot() {
     },
   ]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -34,20 +36,70 @@ export function Chatbot() {
       timestamp: new Date(),
     };
 
-    setMessages([...messages, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
     setInput("");
+    setIsLoading(true);
 
-    // Simulate bot response
-    setTimeout(() => {
+    try {
+      // Call RAG retrieval function
+      const supabase = createClient();
+      const { data: { results }, error } = await supabase.functions.invoke('rag-retrieval', {
+        body: { 
+          query: input,
+          limit: 3 
+        }
+      });
+
+      if (error) throw error;
+
+      // Format retrieved content
+      const context = results.map((doc: any) => doc.content_text).join('\n\n');
+      
+      // Call OpenAI for response generation
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          messages: [
+            {
+              role: 'system',
+              content: `You are a helpful customer support assistant. Use the following retrieved content to answer the user's question. If you cannot find a relevant answer in the content, say so politely and offer to create a support ticket.
+
+Retrieved content:
+${context}`
+            },
+            {
+              role: 'user',
+              content: input
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to generate response');
+      
+      const { message: botResponse } = await response.json();
+
       const botMessage: Message = {
         id: `bot-${Date.now()}`,
-        content:
-          "I'm checking our knowledge base for relevant information. How else can I assist you?",
+        content: botResponse,
         sender: "bot",
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, botMessage]);
-    }, 1000);
+
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error:', error);
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        content: "I apologize, but I'm having trouble accessing the knowledge base right now. Would you like to create a support ticket instead?",
+        sender: "bot",
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!isOpen) {
@@ -101,6 +153,17 @@ export function Chatbot() {
             </div>
           </div>
         ))}
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="max-w-[80%] rounded-lg p-3 bg-muted">
+              <div className="flex gap-1">
+                <div className="w-2 h-2 rounded-full bg-foreground/50 animate-bounce" />
+                <div className="w-2 h-2 rounded-full bg-foreground/50 animate-bounce [animation-delay:0.2s]" />
+                <div className="w-2 h-2 rounded-full bg-foreground/50 animate-bounce [animation-delay:0.4s]" />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="p-4 border-t">
@@ -109,9 +172,14 @@ export function Chatbot() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
-            onKeyPress={(e) => e.key === "Enter" && handleSend()}
+            onKeyPress={(e) => e.key === "Enter" && !isLoading && handleSend()}
+            disabled={isLoading}
           />
-          <Button onClick={handleSend} className="px-3">
+          <Button 
+            onClick={handleSend} 
+            className="px-3"
+            disabled={isLoading}
+          >
             <Send className="w-4 h-4" />
           </Button>
         </div>

@@ -12,7 +12,7 @@ interface Ticket {
   team_id: string | null
   assigned_to: string | null
   status: 'open' | 'in_progress' | 'resolved' | 'closed'
-  tags: { skill_id: string }[]
+  ticket_tags: { tag: { name: string } }[]
 }
 
 interface Agent {
@@ -20,8 +20,8 @@ interface Agent {
   full_name: string
   is_active: boolean
   tickets: { status: string }[]
-  skills: { 
-    skill_id: string
+  agent_skills: { 
+    skill: { name: string }
     proficiency_level: 'beginner' | 'intermediate' | 'expert'
   }[]
 }
@@ -80,8 +80,8 @@ serve(async (req) => {
         team_id,
         assigned_to,
         status,
-        ticket_tags!left(
-          tag:tags!inner(skill_id)
+        ticket_tags!inner(
+          tag:tags(name)
         )
       `)
       .is('assigned_to', null)
@@ -120,7 +120,7 @@ serve(async (req) => {
           is_active,
           tickets!tickets_assigned_to_fkey(status),
           agent_skills!left(
-            skill_id,
+            skill:skills(name),
             proficiency_level
           )
         `)
@@ -139,8 +139,8 @@ serve(async (req) => {
       }
 
       // Calculate workload and skill match for each agent
-      const ticketSkills = new Set(ticket.tags?.map(t => t.skill_id) || [])
-      const hasSkillTags = ticketSkills.size > 0
+      const ticketTags = new Set(ticket.ticket_tags?.map(t => t.tag.name) || [])
+      const hasSkillTags = ticketTags.size > 0
       
       const agentWorkloads = agents.map(agent => {
         const activeTickets = agent.tickets?.filter(t => 
@@ -153,8 +153,8 @@ serve(async (req) => {
         
         // Only calculate skill matches if ticket has skill tags
         if (hasSkillTags) {
-          agent.skills?.forEach(skill => {
-            if (ticketSkills.has(skill.skill_id)) {
+          agent.agent_skills?.forEach(skill => {
+            if (ticketTags.has(skill.skill.name)) {
               skillMatch++
               // Weight proficiency levels
               switch (skill.proficiency_level) {

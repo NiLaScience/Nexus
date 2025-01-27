@@ -37,6 +37,8 @@
     "**/*.tsx"
   ],
   "exclude": [
+    "docs",
+    "agent-examples",
     "node_modules",
     "design",
     "supabase/functions"
