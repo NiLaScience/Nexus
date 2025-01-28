@@ -4,7 +4,7 @@ import { hasEnvVars } from "@/utils/supabase/check-env-vars";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import Link from "next/link";
-import { BarChart2, BookOpen, Home, Inbox, Plus, Settings } from "lucide-react";
+import { BarChart2, BookOpen, Home, Inbox, Plus, Settings, Users } from "lucide-react";
 import { Chatbot } from "@/components/chat/chatbot";
 import { Toaster } from "@/components/ui/toaster";
 import { NotificationsDropdown } from "@/components/ui/notifications-dropdown";
@@ -40,6 +40,7 @@ export default async function RootLayout({
     .single();
 
   const isCustomer = profile?.role === 'customer';
+  const isAdmin = profile?.role === 'admin';
 
   return (
     <html lang="en" className={geistSans.className} suppressHydrationWarning>
@@ -81,12 +82,20 @@ export default async function RootLayout({
                   <BookOpen className="w-5 h-5" />
                 </Link>
                 {!isCustomer && (
-                  <Link
-                    href="/analytics"
-                    className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
-                  >
-                    <BarChart2 className="w-5 h-5" />
-                  </Link>
+                  <>
+                    <Link
+                      href="/analytics"
+                      className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
+                    >
+                      <BarChart2 className="w-5 h-5" />
+                    </Link>
+                    <Link
+                      href="/candidates"
+                      className="p-2 rounded-lg transition-colors duration-200 hover:bg-accent text-muted-foreground hover:text-foreground"
+                    >
+                      <Users className="w-5 h-5" />
+                    </Link>
+                  </>
                 )}
                 <Link
                   href="/settings"

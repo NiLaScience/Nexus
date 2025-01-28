@@ -1,0 +1,1 @@
+import { candidateMatchingWorkflow } from './lib/workflows/candidate-matching'; async function main() { const jobDescriptionId = 'acbb982c-dcbc-4508-b620-f3c726c418ee'; console.log('Starting workflow...'); const result = await candidateMatchingWorkflow.invoke({ jobDescriptionId }); console.log('Results:', JSON.stringify(result, null, 2)); } main().catch(console.error);
