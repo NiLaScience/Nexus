@@ -33,6 +33,22 @@ const StateAnnotation = Annotation.Root({
     reducer: (a, b) => a.concat(b),
   }),
   finalCandidates: Annotation<Array<z.infer<typeof candidateProfileSchema>>>(),
+  userFeedback: Annotation<Array<{
+    candidateId: string,
+    isGoodFit: boolean,
+    feedback?: string
+  }>>({
+    default: () => [],
+    reducer: (a, b) => a.concat(b),
+  }),
+  iterationCount: Annotation<number>({
+    default: () => 0,
+    reducer: (_, b) => b,
+  }),
+  refinedCriteria: Annotation<string>({
+    default: () => '',
+    reducer: (_, b) => b,
+  }),
   error: Annotation<string>(),
 });
 
@@ -170,13 +186,24 @@ async function storeCandidates(state: typeof StateAnnotation.State) {
     const { data: storedCandidates, error } = await supabase
       .from('candidate_profiles')
       .insert(candidatesToInsert)
-      .select();
+      .select('*');
 
     if (error) throw new Error(`Failed to store candidates: ${error.message}`);
 
+    // Map stored candidates back to our schema format with IDs
+    const candidatesWithIds = storedCandidates.map(stored => ({
+      id: stored.id,
+      name: stored.name,
+      background: stored.background,
+      skills: stored.skills,
+      yearsOfExperience: stored.years_of_experience,
+      achievements: stored.achievements,
+      matchScore: stored.score,
+      reasonForMatch: stored.judge_evaluation.reason
+    }));
+
     return { 
-      storedCandidates,
-      finalCandidates: state.finalCandidates 
+      finalCandidates: candidatesWithIds
     };
   } catch (error) {
     console.error('Error storing candidates:', error);
@@ -187,6 +214,64 @@ async function storeCandidates(state: typeof StateAnnotation.State) {
   }
 }
 
+// Node 5: Process user feedback and refine criteria
+async function processFeedback(state: typeof StateAnnotation.State) {
+  if (!state.userFeedback?.length) {
+    return { refinedCriteria: state.structuredJobDescription };
+  }
+
+  // Augment LLM with structured output for criteria refinement
+  const refiner = llm.withStructuredOutput(z.object({
+    refinedCriteria: z.string().describe("Refined job criteria based on feedback"),
+    explanation: z.string().describe("Explanation of the refinements made")
+  }));
+
+  const prompt = `Based on user feedback for candidate profiles, refine the job requirements to generate better matches.
+  
+  Original Job Description:
+  ${JSON.stringify(state.structuredJobDescription, null, 2)}
+  
+  User Feedback:
+  ${JSON.stringify(state.userFeedback, null, 2)}
+  
+  Analyze the feedback patterns and suggest refined criteria that will help generate more suitable candidates.
+  Focus on both what users liked and disliked about the candidates.`;
+
+  const result = await refiner.invoke(prompt);
+  
+  // Store iteration in database
+  try {
+    const { error } = await supabase
+      .from('matching_iterations')
+      .insert({
+        job_description_id: state.jobDescriptionId,
+        iteration_number: state.iterationCount + 1,
+        refined_criteria: result.refinedCriteria,
+        feedback_summary: result.explanation
+      });
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error storing iteration:', error);
+  }
+
+  return { 
+    refinedCriteria: result.refinedCriteria,
+    iterationCount: state.iterationCount + 1
+  };
+}
+
+// Node 6: Check if we should continue iterating
+function shouldContinue(state: typeof StateAnnotation.State) {
+  // Stop after 3 iterations or if no feedback received
+  if (state.iterationCount >= 3 || !state.userFeedback?.length) {
+    return "complete";
+  }
+  
+  // Continue if we have feedback to process
+  return "iterate";
+}
+
 // Build the workflow
 export const candidateMatchingWorkflow = new StateGraph(StateAnnotation)
   .addNode("fetchJobDescription", fetchJobDescription)
@@ -194,11 +279,20 @@ export const candidateMatchingWorkflow = new StateGraph(StateAnnotation)
   .addNode("evaluateCandidates", evaluateCandidates)
   .addNode("rankCandidates", rankCandidates)
   .addNode("storeCandidates", storeCandidates)
+  .addNode("processFeedback", processFeedback)
   .addEdge("__start__", "fetchJobDescription")
   .addEdge("fetchJobDescription", "generateCandidates")
   .addEdge("generateCandidates", "evaluateCandidates")
   .addEdge("evaluateCandidates", "rankCandidates")
   .addEdge("rankCandidates", "storeCandidates")
-  .addEdge("storeCandidates", "__end__")
+  .addConditionalEdges(
+    "storeCandidates",
+    shouldContinue,
+    {
+      "iterate": "processFeedback",
+      "complete": "__end__"
+    }
+  )
+  .addEdge("processFeedback", "generateCandidates")
   .compile();
 

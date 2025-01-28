@@ -7,6 +7,16 @@ import { Card } from '@/components/ui/card';
 import { Loader2, Upload, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { createClient } from '@supabase/supabase-js';
+import { HandThumbUpIcon, HandThumbDownIcon } from '@heroicons/react/24/solid';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileUp, Link } from "lucide-react";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function CandidatesPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -16,7 +26,12 @@ export default function CandidatesPage() {
   const [parsedData, setParsedData] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [candidates, setCandidates] = useState<any[]>([]);
+  const [isParsing, setIsParsing] = useState(false);
+  const [url, setUrl] = useState<string>("");
+  const [votedCandidates, setVotedCandidates] = useState<Set<string>>(new Set());
+  const [iterationCount, setIterationCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Poll for results if we have a jobId
   useEffect(() => {
@@ -43,6 +58,48 @@ export default function CandidatesPage() {
     return () => clearInterval(pollInterval);
   }, [jobId]);
 
+  // Poll for parsing status
+  const pollParseStatus = async (id: string) => {
+    try {
+      const response = await fetch(`/api/candidates/parse/${id}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.status === 'completed' && data.parsed) {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          setIsParsing(false);
+          toast.success("Job description parsed successfully");
+          return true;
+        } else if (data.status === 'error') {
+          throw new Error('Failed to parse job description');
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Error polling parse status:', error);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      setIsParsing(false);
+      toast.error(error instanceof Error ? error.message : "Failed to check parse status");
+      return false;
+    }
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
@@ -62,6 +119,7 @@ export default function CandidatesPage() {
     setParsedData(null);
 
     try {
+      setIsParsing(true);
       const formData = new FormData();
       formData.append('file', file);
 
@@ -74,6 +132,9 @@ export default function CandidatesPage() {
 
       if (response.ok) {
         setJobId(data.id);
+        
+        // Start polling for parse status
+        pollIntervalRef.current = setInterval(() => pollParseStatus(data.id), 2000);
       } else {
         setError(data.error || 'Failed to parse job description');
       }
@@ -103,6 +164,36 @@ export default function CandidatesPage() {
     }
   };
 
+  const handleUrlSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!url) return;
+
+    try {
+      setIsParsing(true);
+      const response = await fetch('/api/candidates/parse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to load job description');
+
+      setJobId(result.id);
+      
+      // Start polling for parse status
+      pollIntervalRef.current = setInterval(() => pollParseStatus(result.id), 2000);
+
+      toast.success("Job description loaded successfully");
+    } catch (error) {
+      console.error('Error loading job description:', error);
+      setIsParsing(false);
+      toast.error(error instanceof Error ? error.message : "Failed to load job description");
+    }
+  };
+
   const handleGenerate = async () => {
     if (!jobId) {
       toast.error("No job description ID found");
@@ -125,6 +216,8 @@ export default function CandidatesPage() {
       console.log('Generated candidates:', result);
       if (result.data?.finalCandidates) {
         setCandidates(result.data.finalCandidates);
+        // Increment iteration count on successful generation
+        setIterationCount(prev => prev + 1);
       }
       toast.success("Candidates generated successfully");
     } catch (error) {
@@ -132,6 +225,49 @@ export default function CandidatesPage() {
       toast.error(error instanceof Error ? error.message : "Failed to generate candidates");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleVote = async (candidateId: string, isGoodFit: boolean) => {
+    if (!candidateId) {
+      toast.error('Invalid candidate ID');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('candidate_feedback')
+        .insert({
+          candidate_id: candidateId,
+          is_good_fit: isGoodFit
+        });
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw new Error(error.message);
+      }
+
+      // Mark candidate as voted
+      setVotedCandidates(prev => new Set([...prev, candidateId]));
+      toast.success("Feedback submitted successfully");
+
+      // If we have votes for all candidates, check iteration count before generating new ones
+      const allVoted = candidates.every(c => 
+        votedCandidates.has(c.id) || c.id === candidateId
+      );
+
+      if (allVoted && jobId) {
+        if (iterationCount >= 3) {
+          toast.info("Maximum number of iterations reached. Thank you for your feedback!");
+          return;
+        }
+        toast.info("Generating new candidates based on feedback...");
+        await handleGenerate();
+      }
+
+    } catch (error) {
+      console.error('Error submitting vote:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to submit feedback');
     }
   };
 
@@ -175,16 +311,23 @@ export default function CandidatesPage() {
           <div className="flex justify-end">
             <Button 
               onClick={handleUpload}
-              disabled={!file || loading}
+              disabled={!file || loading || isParsing}
               className="min-w-[120px]"
             >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {loading ? 'Uploading...' : 'Upload & Parse'}
+              {(loading || isParsing) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {loading ? 'Uploading...' : isParsing ? 'Parsing...' : 'Upload & Parse'}
             </Button>
           </div>
 
           {error && (
             <p className="text-sm text-destructive">{error}</p>
+          )}
+
+          {isParsing && !error && (
+            <div className="flex items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Analyzing job description...
+            </div>
           )}
         </div>
       </Card>
@@ -216,53 +359,66 @@ export default function CandidatesPage() {
           {candidates.length > 0 && (
             <div className="space-y-4">
               <h2 className="text-2xl font-bold">Generated Candidates</h2>
-              {candidates.map((candidate, index) => (
-                <Card key={index} className="p-6">
-                  <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {candidates.map((candidate, index) => (
+                  <div key={candidate.id || `candidate-${index}`} className="bg-card border rounded-lg p-4 space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="text-xl font-semibold">{candidate.name}</h3>
-                        <p className="text-muted-foreground">{candidate.background}</p>
+                        <h3 className="font-medium text-lg">{candidate.name}</h3>
+                        <p className="text-sm text-muted-foreground">{candidate.background}</p>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold">{candidate.matchScore}%</div>
-                        <div className="text-sm text-muted-foreground">Match Score</div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h4 className="font-medium mb-2">Skills</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {candidate.skills.map((skill: string, skillIndex: number) => (
-                          <span
-                            key={skillIndex}
-                            className="px-2 py-1 bg-secondary text-secondary-foreground rounded-md text-sm"
+                      {!votedCandidates.has(candidate.id) && (
+                        <div className="flex space-x-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleVote(candidate.id, true)}
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
                           >
-                            {skill}
-                          </span>
-                        ))}
+                            <HandThumbUpIcon className="h-5 w-5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleVote(candidate.id, false)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <HandThumbDownIcon className="h-5 w-5" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <h4 className="font-medium mb-1">Skills</h4>
+                        <ul className="list-disc list-inside text-muted-foreground">
+                          {candidate.skills.map((skill: string, index: number) => (
+                            <li key={`${candidate.id}-skill-${index}`}>{skill}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p><span className="font-medium">Experience:</span> {candidate.yearsOfExperience} years</p>
+                        <p><span className="font-medium">Match Score:</span> {candidate.matchScore}%</p>
                       </div>
                     </div>
 
-                    <div>
-                      <h4 className="font-medium mb-2">Experience & Achievements</h4>
-                      <p className="mb-2">Years of Experience: {candidate.yearsOfExperience}</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        {candidate.achievements.map((achievement: string, achievementIndex: number) => (
-                          <li key={achievementIndex} className="text-muted-foreground">
-                            {achievement}
-                          </li>
+                    <div className="text-sm">
+                      <h4 className="font-medium mb-1">Achievements</h4>
+                      <ul className="list-disc list-inside text-muted-foreground">
+                        {candidate.achievements.map((achievement: string, index: number) => (
+                          <li key={`${candidate.id}-achievement-${index}`}>{achievement}</li>
                         ))}
                       </ul>
                     </div>
 
-                    <div>
-                      <h4 className="font-medium mb-2">Match Reasoning</h4>
-                      <p className="text-muted-foreground">{candidate.reasonForMatch}</p>
-                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium">Match Reasoning:</span> {candidate.reasonForMatch}
+                    </p>
                   </div>
-                </Card>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
