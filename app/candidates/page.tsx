@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { ParsedJobDescription } from '@/components/parsed-job-description';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2, Upload, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 export default function CandidatesPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -13,7 +14,8 @@ export default function CandidatesPage() {
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<any>(null);
-  const [rawText, setRawText] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [candidates, setCandidates] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Poll for results if we have a jobId
@@ -26,7 +28,6 @@ export default function CandidatesPage() {
         const data = await response.json();
 
         if (response.ok) {
-          setRawText(data.text);
           if (data.parsed) {
             setParsedData(data.parsed);
             clearInterval(pollInterval);
@@ -59,7 +60,6 @@ export default function CandidatesPage() {
     setLoading(true);
     setError(null);
     setParsedData(null);
-    setRawText(null);
 
     try {
       const formData = new FormData();
@@ -73,7 +73,6 @@ export default function CandidatesPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setRawText(data.text);
         setJobId(data.id);
       } else {
         setError(data.error || 'Failed to parse job description');
@@ -101,6 +100,38 @@ export default function CandidatesPage() {
       setError(null);
     } else {
       setError('Please drop a PDF file');
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!jobId) {
+      toast.error("No job description ID found");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/candidate-matching', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ jobDescriptionId: jobId }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to generate candidates');
+
+      console.log('Generated candidates:', result);
+      if (result.data?.finalCandidates) {
+        setCandidates(result.data.finalCandidates);
+      }
+      toast.success("Candidates generated successfully");
+    } catch (error) {
+      console.error('Error generating candidates:', error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate candidates");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -158,25 +189,83 @@ export default function CandidatesPage() {
         </div>
       </Card>
 
-      {rawText && (
-        <Card className="p-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Raw Text</h2>
-              {jobId && !parsedData && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Processing with AI...
-                </div>
-              )}
-            </div>
-            <pre className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg">{rawText}</pre>
-          </div>
-        </Card>
-      )}
-
       {parsedData && (
-        <ParsedJobDescription parsedData={parsedData} />
+        <div className="space-y-4">
+          <ParsedJobDescription parsedData={parsedData} />
+          
+          <Card className="p-6">
+            <Button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className="w-full"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating Candidates...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  Generate Candidates
+                </>
+              )}
+            </Button>
+          </Card>
+
+          {candidates.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold">Generated Candidates</h2>
+              {candidates.map((candidate, index) => (
+                <Card key={index} className="p-6">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-xl font-semibold">{candidate.name}</h3>
+                        <p className="text-muted-foreground">{candidate.background}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold">{candidate.matchScore}%</div>
+                        <div className="text-sm text-muted-foreground">Match Score</div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-medium mb-2">Skills</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {candidate.skills.map((skill: string, skillIndex: number) => (
+                          <span
+                            key={skillIndex}
+                            className="px-2 py-1 bg-secondary text-secondary-foreground rounded-md text-sm"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-medium mb-2">Experience & Achievements</h4>
+                      <p className="mb-2">Years of Experience: {candidate.yearsOfExperience}</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        {candidate.achievements.map((achievement: string, achievementIndex: number) => (
+                          <li key={achievementIndex} className="text-muted-foreground">
+                            {achievement}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h4 className="font-medium mb-2">Match Reasoning</h4>
+                      <p className="text-muted-foreground">{candidate.reasonForMatch}</p>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

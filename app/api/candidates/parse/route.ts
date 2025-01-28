@@ -67,16 +67,30 @@ async function fetchUrlContent(url: string): Promise<Blob> {
 async function processWithLLM(jobDescription: string, fileId?: string) {
   try {
     console.log('Parsing job description with LLM...', { fileId });
-    const prompt = await formattedParserPrompt;
-    const response = await prompt.pipe(llm).invoke({
-      jobDescription
-    });
     
-    console.log('LLM Response:', response);
-    const responseText = (response as BaseMessage).content as string;
+    // Augment LLM with structured output
+    const structuredLLM = llm.withStructuredOutput(jobDescriptionParser.schema);
     
-    console.log('Parsing response with Zod...');
-    const parsedDescription = await jobDescriptionParser.parse(responseText);
+    // Create the prompt
+    const prompt = `You are a job description parser. Your task is to extract structured information from a job description.
+    Please analyze the following job description and extract key information in a structured format.
+
+    Job Description:
+    ${jobDescription}
+
+    Extract all relevant information and ensure all fields are filled with appropriate values.
+    For career level and leadership information:
+    - Infer the level from responsibilities, qualifications, and reporting structure
+    - Set managementResponsibilities based on mentions of team leadership or direct reports
+    - Estimate directReports count from context (use 0 if none mentioned)
+    - Determine leadership type based on role focus and responsibilities
+    - Set crossFunctional based on mentions of cross-team collaboration
+
+    If a field is not mentioned in the job description, use reasonable defaults based on the context.`;
+
+    // Get structured response
+    console.log('Getting structured response from LLM...');
+    const parsedDescription = await structuredLLM.invoke(prompt);
     console.log('Parsed result:', parsedDescription);
 
     if (fileId) {
@@ -195,7 +209,11 @@ export async function POST(request: Request) {
     }
 
     // Start LLM processing in background
-    processWithLLM(rawJobDescription, fileId).catch(console.error);
+    Promise.resolve().then(() => {
+      processWithLLM(rawJobDescription, fileId).catch(error => {
+        console.error('Background LLM processing failed:', error);
+      });
+    });
 
     // Return immediately with raw text and job ID
     return NextResponse.json({
