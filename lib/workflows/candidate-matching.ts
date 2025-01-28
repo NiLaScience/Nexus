@@ -1,6 +1,7 @@
-import { StateGraph, Annotation } from "@langchain/langgraph";
+import { StateGraph, Annotation, END } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { StructuredOutputParser } from "langchain/output_parsers";
+import { RunnableLambda } from "@langchain/core/runnables";
 import { z } from "zod";
 import { llm } from "@/lib/llm/config";
 import { createClient } from '@supabase/supabase-js';
@@ -556,6 +557,12 @@ function shouldContinue(state: typeof StateAnnotation.State) {
   return "iterate";
 }
 
+// Node for waiting for feedback
+const waitForFeedback = RunnableLambda.from(async () => {
+  console.log('\n⏳ Waiting for feedback...');
+  throw new Error("Waiting for feedback");
+});
+
 // Build the workflow
 export const candidateMatchingWorkflow = new StateGraph(StateAnnotation)
   .addNode("fetchJobDescription", fetchJobDescription)
@@ -563,6 +570,7 @@ export const candidateMatchingWorkflow = new StateGraph(StateAnnotation)
   .addNode("evaluateCandidates", evaluateCandidates)
   .addNode("rankCandidates", rankCandidates)
   .addNode("storeCandidates", storeCandidates)
+  .addNode("waitForFeedback", waitForFeedback)
   .addNode("processFeedback", processFeedback)
   .addEdge("__start__", "fetchJobDescription")
   .addEdge("fetchJobDescription", "generateCandidates")
@@ -573,10 +581,11 @@ export const candidateMatchingWorkflow = new StateGraph(StateAnnotation)
     "storeCandidates",
     shouldContinue,
     {
-      "iterate": "processFeedback",
+      "iterate": "waitForFeedback",
       "complete": "__end__"
     }
   )
+  .addEdge("waitForFeedback", "processFeedback")
   .addEdge("processFeedback", "generateCandidates")
   .compile();
 

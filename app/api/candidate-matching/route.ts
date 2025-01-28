@@ -7,54 +7,35 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-const MAX_ITERATIONS = 5;
-
 // Input validation schema
 const requestSchema = z.object({
-  jobDescriptionId: z.string().uuid()
+  jobDescriptionId: z.string().uuid(),
+  feedback: z.array(z.object({
+    candidateId: z.string(),
+    isGoodFit: z.boolean(),
+    feedback: z.string().optional()
+  })).optional()
 });
 
 export async function POST(req: NextRequest) {
   try {
     // Parse and validate the request body
-    const body = await req.json();
-    const { jobDescriptionId } = requestSchema.parse(body);
+    const { jobDescriptionId, feedback } = requestSchema.parse(await req.json());
 
-    // First get candidates for this job
-    const { data: candidates, error: candidatesError } = await supabase
-      .from('candidate_profiles')
-      .select('id')
-      .eq('job_description_id', jobDescriptionId);
-
-    if (candidatesError) throw new Error(`Failed to fetch candidates: ${candidatesError.message}`);
-
-    // Then get feedback for these candidates
-    const { data: feedbackData, error: feedbackError } = await supabase
-      .from('candidate_feedback')
-      .select('candidate_id, is_good_fit, feedback')
-      .in('candidate_id', candidates?.map(c => c.id) || []);
-
-    if (feedbackError) throw new Error(`Failed to fetch feedback: ${feedbackError.message}`);
-
-    // Run the candidate matching workflow with existing feedback
+    // Just run the workflow with whatever feedback we have
     const result = await candidateMatchingWorkflow.invoke({
       jobDescriptionId,
-      userFeedback: (feedbackData || []).map(f => ({
-        candidateId: f.candidate_id,
-        isGoodFit: f.is_good_fit,
-        feedback: f.feedback
-      }))
+      userFeedback: feedback || []
     });
 
-    // Return the results with workflow state
     return Response.json({
       success: true,
       data: {
         finalCandidates: result.finalCandidates,
         iterationCount: result.iterationCount,
-        isComplete: result.iterationCount >= MAX_ITERATIONS - 1 || !result.userFeedback?.length
-      },
-      error: result.error
+        isComplete: result.shouldTerminate,
+        needsFeedback: !result.shouldTerminate
+      }
     });
 
   } catch (error) {
