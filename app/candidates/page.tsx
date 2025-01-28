@@ -13,10 +13,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileUp, Link } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+function IterationProgress({ current, max }: { current: number; max: number }) {
+  // Calculate progress based on 0-based iteration count
+  const progress = ((current + 1) / max) * 100;
+  
+  return (
+    <div className="w-full space-y-2">
+      <div className="flex justify-between text-sm text-muted-foreground">
+        <span>Iteration {current + 1} of {max}</span>
+        <span>{Math.round(progress)}%</span>
+      </div>
+      <Progress value={progress} className="h-2" />
+    </div>
+  );
+}
 
 export default function CandidatesPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -29,7 +45,10 @@ export default function CandidatesPage() {
   const [isParsing, setIsParsing] = useState(false);
   const [url, setUrl] = useState<string>("");
   const [votedCandidates, setVotedCandidates] = useState<Set<string>>(new Set());
-  const [iterationCount, setIterationCount] = useState(0);
+  const [workflowState, setWorkflowState] = useState<{
+    iterationCount: number;
+    isComplete: boolean;
+  }>({ iterationCount: 0, isComplete: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -216,8 +235,10 @@ export default function CandidatesPage() {
       console.log('Generated candidates:', result);
       if (result.data?.finalCandidates) {
         setCandidates(result.data.finalCandidates);
-        // Increment iteration count on successful generation
-        setIterationCount(prev => prev + 1);
+        setWorkflowState({
+          iterationCount: result.data.iterationCount,
+          isComplete: result.data.isComplete
+        });
       }
       toast.success("Candidates generated successfully");
     } catch (error) {
@@ -229,8 +250,8 @@ export default function CandidatesPage() {
   };
 
   const handleVote = async (candidateId: string, isGoodFit: boolean) => {
-    if (!candidateId) {
-      toast.error('Invalid candidate ID');
+    if (!candidateId || !jobId) {
+      toast.error('Invalid candidate ID or job ID');
       return;
     }
 
@@ -239,6 +260,7 @@ export default function CandidatesPage() {
         .from('candidate_feedback')
         .insert({
           candidate_id: candidateId,
+          job_description_id: jobId,
           is_good_fit: isGoodFit
         });
 
@@ -251,14 +273,14 @@ export default function CandidatesPage() {
       setVotedCandidates(prev => new Set([...prev, candidateId]));
       toast.success("Feedback submitted successfully");
 
-      // If we have votes for all candidates, check iteration count before generating new ones
+      // If we have votes for all candidates, check workflow state before generating new ones
       const allVoted = candidates.every(c => 
         votedCandidates.has(c.id) || c.id === candidateId
       );
 
       if (allVoted && jobId) {
-        if (iterationCount >= 3) {
-          toast.info("Maximum number of iterations reached. Thank you for your feedback!");
+        if (workflowState.isComplete) {
+          toast.info("Maximum iterations reached or no more feedback needed. Thank you for your feedback!");
           return;
         }
         toast.info("Generating new candidates based on feedback...");
@@ -422,6 +444,20 @@ export default function CandidatesPage() {
             </div>
           )}
         </div>
+      )}
+
+      {workflowState.iterationCount > 0 && (
+        <Card className="p-4">
+          <IterationProgress 
+            current={workflowState.iterationCount} 
+            max={5} // MAX_ITERATIONS from workflow
+          />
+          {workflowState.isComplete && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Process complete! Final candidates generated.
+            </p>
+          )}
+        </Card>
       )}
     </div>
   );
