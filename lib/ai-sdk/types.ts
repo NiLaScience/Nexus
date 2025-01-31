@@ -49,31 +49,106 @@ export type ScoringCriteria = {
   achievementsWeight: number;
   culturalWeight: number;
   leadershipWeight: number;
-  requiredSkills: string[];
-  preferredSkills: string[];
+  requiredSkills: Array<{
+    skill: string;
+    weight: number;
+  }>;
+  preferredSkills: Array<{
+    skill: string;
+    weight: number;
+  }>;
   experienceLevels: {
     minimum: number;
     preferred: number;
     maximum: number;
     yearsWeight: number;
   };
-  culturalCriteria: string[];
-  leadershipCriteria: string[];
+  culturalCriteria: Array<{
+    attribute: string;
+    weight: number;
+  }>;
+  leadershipCriteria: Array<{
+    attribute: string;
+    weight: number;
+  }>;
 };
 
 export type CriteriaRefinement = {
-  updatedSkills: {
-    required: string[];
-    preferred: string[];
-    removed: string[];
+  refinedCriteria: {
+    requiredSkills: Array<{
+      skill: string;
+      importance: number;
+      reason: string;
+    }>;
+    preferredSkills: Array<{
+      skill: string;
+      importance: number;
+      reason: string;
+    }>;
+    experienceLevel: {
+      minYears: number;
+      maxYears: number;
+      reason: string;
+    };
+    culturalAttributes: Array<{
+      attribute: string;
+      importance: number;
+      reason: string;
+    }>;
+    adjustments: Array<{
+      aspect: string;
+      change: 'increased' | 'decreased' | 'unchanged';
+      reason: string;
+    }>;
   };
-  updatedExperience: {
-    minimum: number;
-    preferred: number;
-    maximum: number;
+  explanation: string;
+};
+
+export interface CandidateGenerationConfig {
+  jobDescription: string;
+  selectionCriteria: string[];
+  numberOfCandidates: number;
+  feedback?: CandidateFeedback[];
+}
+
+export interface GeneratedCandidate {
+  name: string;
+  background: string;
+  skills: string[];
+  yearsOfExperience: number;
+  achievements: string[];
+  matchScore: number;
+  reasonForMatch: string;
+  scoringDetails: {
+    skillsScore: number;
+    experienceScore: number;
+    achievementsScore: number;
+    culturalScore: number;
+    leadershipScore?: number;
+    scoreBreakdown: string;
   };
-  updatedCulturalCriteria: string[];
-  updatedLeadershipCriteria: string[];
-  reasonForChanges: string;
-  confidence: number;
-}; 
+}
+
+// Basic types for the simplified workflow
+export interface Candidate {
+  name: string;
+  background: string;
+  skills: string[];
+  yearsOfExperience: number;
+  matchScore: number;
+  reasonForMatch: string;
+}
+
+export interface JobDescription {
+  id: string;
+  title: string;
+  description: string;
+  requirements: string[];
+}
+
+export interface GenerationConfig {
+  jobDescription: string;
+  selectionCriteria: string[];
+  numberOfCandidates: number;
+  feedback?: CandidateFeedback[];
+} 

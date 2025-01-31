@@ -1,96 +1,52 @@
-import { openai, AI_MODEL } from './config';
+import { AI_MODEL } from './config';
+import { openai } from '@ai-sdk/openai';
+import { generateObject } from 'ai';
+import { candidateEvaluationSchema, evaluationCategories, messageTemplates, systemPrompts } from './schema';
 import type { 
   CandidateProfile, 
   JobDescription, 
-  CandidateEvaluation,
-  EvaluationCategory,
-  SystemMessage,
-  UserMessage 
+  CandidateEvaluation
 } from './types';
-
-const EVALUATION_PROMPT = `You are an expert AI recruiter evaluating candidate fit for a job position.
-Analyze the candidate's profile against the job requirements and provide a detailed evaluation.
-Focus on both technical skills and soft skills alignment. Consider experience level, skill match, 
-and potential for growth. Be objective and thorough in your assessment.`;
-
-const DEFAULT_CATEGORIES = [
-  {
-    name: 'Technical Skills',
-    weight: 0.4,
-    criteria: ['Required Skills Match', 'Technical Experience', 'Technical Depth']
-  },
-  {
-    name: 'Experience',
-    weight: 0.3,
-    criteria: ['Years of Experience', 'Industry Knowledge', 'Project Complexity']
-  },
-  {
-    name: 'Education & Certifications',
-    weight: 0.15,
-    criteria: ['Education Level', 'Relevant Certifications', 'Continuous Learning']
-  },
-  {
-    name: 'Job Fit',
-    weight: 0.15,
-    criteria: ['Role Alignment', 'Company Culture', 'Growth Potential']
-  }
-];
 
 export async function evaluateCandidate(
   candidate: CandidateProfile,
   job: JobDescription
 ): Promise<CandidateEvaluation> {
-  const messages: (SystemMessage | UserMessage)[] = [
-    { role: 'system', content: EVALUATION_PROMPT },
-    {
-      role: 'user',
-      content: `Please evaluate this candidate for the following job:
+  try {
+    const prompt = messageTemplates.candidateEvaluation.userPrompt(job, candidate, evaluationCategories);
 
-Job Title: ${job.title}
-Job Description: ${job.description}
-Requirements: ${job.requirements.join(', ')}
-Experience Level: ${job.experienceLevel}
+    const result = await generateObject({
+      model: openai(AI_MODEL),
+      schema: candidateEvaluationSchema,
+      prompt,
+      messages: [
+        systemPrompts.candidateEvaluation,
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    });
 
-Candidate Profile:
-Name: ${candidate.name}
-Skills: ${candidate.skills.join(', ')}
-Experience: ${candidate.experience.summary}
-Education: ${candidate.education?.map(e => `${e.degree} from ${e.institution}`).join(', ') || 'Not specified'}
-
-Evaluate the candidate across these categories:
-${DEFAULT_CATEGORIES.map(cat => 
-  `${cat.name} (Weight: ${cat.weight})
-   Criteria: ${cat.criteria.join(', ')}`
-).join('\n')}
-
-Return a JSON object matching the CandidateEvaluation schema with detailed scoring and reasoning.`
+    // Log any warnings for debugging
+    if (result.warnings?.length) {
+      console.warn('AI SDK Warnings:', result.warnings);
     }
-  ];
 
-  const response = await openai.chat.completions.create({
-    model: AI_MODEL,
-    messages,
-    temperature: 0.3,
-    response_format: { type: 'json_object' }
-  });
-
-  const evaluation = JSON.parse(response.choices[0].message.content || '{}');
-  
-  // Calculate overall score based on weighted category scores
-  const overallScore = evaluation.categories.reduce(
-    (acc: number, cat: EvaluationCategory) => acc + (cat.score * cat.weight),
-    0
-  );
-
-  return {
-    candidateId: candidate.id,
-    jobId: job.title, // Using title as ID for now
-    timestamp: new Date(),
-    overallScore,
-    ...evaluation,
-    evaluator: 'AI',
-    confidence: 0.85, // TODO: Implement confidence scoring
-  };
+    const evaluation = {
+      ...result.response,
+      candidateId: candidate.id || 'unknown',
+      jobId: job.title,
+      timestamp: new Date(),
+      evaluator: 'AI' as const,
+      confidence: 0.85
+    };
+    
+    return candidateEvaluationSchema.parse(evaluation);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error('Failed to evaluate candidate: ' + errorMessage);
+  }
 }
 
 export async function evaluateCandidateBatch(

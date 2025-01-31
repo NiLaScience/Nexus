@@ -16,6 +16,7 @@ export async function storeGeneratedCandidates(
   isFinal: boolean = false
 ) {
   const candidatesToInsert = candidates.map(candidate => ({
+    id: candidate.id,
     job_description_id: jobDescriptionId,
     name: candidate.name,
     background: candidate.background,
@@ -33,7 +34,7 @@ export async function storeGeneratedCandidates(
 
   const { data, error } = await supabase
     .from('candidate_profiles')
-    .insert(candidatesToInsert)
+    .upsert(candidatesToInsert, { onConflict: 'id' })
     .select();
 
   if (error) throw new Error(`Failed to store candidates: ${error.message}`);

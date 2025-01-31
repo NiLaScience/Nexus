@@ -1,40 +1,24 @@
 import { NextRequest } from 'next/server';
-import { processCandidateFeedback } from '@/lib/ai-sdk/candidate-generation';
-import { feedbackSchema } from '@/lib/ai-sdk/schema';
-import type { CandidateFeedback } from '@/lib/ai-sdk/types';
-import { z, ZodError } from 'zod';
-
-export const runtime = 'edge';
+import { storeFeedback } from '@/lib/ai-sdk/database';
+import { feedbackRequestSchema } from '@/lib/ai-sdk/schema';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    
-    // Validate request body against schema
-    const feedback: CandidateFeedback[] = z.array(feedbackSchema).parse(body.feedback);
-    
-    // Process feedback and get insights
-    const insights = await processCandidateFeedback(feedback);
+    const { jobDescriptionId, feedback } = 
+      feedbackRequestSchema.parse(await req.json());
 
-    return new Response(JSON.stringify({ insights }), {
-      headers: { 'Content-Type': 'application/json' }
+    await storeFeedback(jobDescriptionId, feedback);
+
+    return Response.json({
+      success: true,
+      message: 'Feedback stored successfully'
     });
-  } catch (error) {
-    console.error('Error processing feedback:', error);
-    
-    if (error instanceof ZodError) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid feedback format',
-          details: error.errors 
-        }),
-        { status: 400 }
-      );
-    }
 
-    return new Response(
-      JSON.stringify({ error: 'Failed to process feedback' }),
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error storing feedback:', error);
+    return Response.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to store feedback'
+    }, { status: 400 });
   }
 } 

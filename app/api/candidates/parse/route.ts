@@ -14,11 +14,6 @@ async function parseContent(content: Blob): Promise<string> {
   form.append('files', content);
   form.append('strategy', 'fast');
 
-  console.log('Sending to parser:', {
-    contentType: content.type,
-    contentSize: content.size
-  });
-
   const parserResponse = await fetch('https://parser.gawntlet.com', {
     method: 'POST',
     body: form,
@@ -26,52 +21,29 @@ async function parseContent(content: Blob): Promise<string> {
   });
 
   if (!parserResponse.ok) {
-    console.error('Parser error:', {
-      status: parserResponse.status,
-      statusText: parserResponse.statusText
-    });
     throw new Error('Failed to parse content');
   }
 
   const data = await parserResponse.json();
-  console.log('Parser response:', JSON.stringify(data, null, 2));
-
-  const parsedText = data
+  return data
     .map((el: any) => el.text?.trim())
     .filter(Boolean)
     .join('\n')
     .replace(/\n{3,}/g, '\n\n');
-
-  console.log('Parsed text:', parsedText);
-  return parsedText;
 }
 
 async function fetchUrlContent(url: string): Promise<Blob> {
-  console.log('Fetching URL:', url);
   const response = await fetch(url);
   if (!response.ok) {
-    console.error('URL fetch error:', {
-      status: response.status,
-      statusText: response.statusText
-    });
     throw new Error('Failed to fetch URL content');
   }
-  const blob = await response.blob();
-  console.log('URL content fetched:', {
-    type: blob.type,
-    size: blob.size
-  });
-  return blob;
+  return response.blob();
 }
 
 async function processWithLLM(jobDescription: string, fileId?: string) {
   try {
-    console.log('Parsing job description with LLM...', { fileId });
-    
-    // Augment LLM with structured output
     const structuredLLM = llm.withStructuredOutput(jobDescriptionParser.schema);
     
-    // Create the prompt
     const prompt = `You are a job description parser. Your task is to extract structured information from a job description.
     Please analyze the following job description and extract key information in a structured format.
 
@@ -88,13 +60,9 @@ async function processWithLLM(jobDescription: string, fileId?: string) {
 
     If a field is not mentioned in the job description, use reasonable defaults based on the context.`;
 
-    // Get structured response
-    console.log('Getting structured response from LLM...');
     const parsedDescription = await structuredLLM.invoke(prompt);
-    console.log('Parsed result:', parsedDescription);
 
     if (fileId) {
-      console.log('Updating job description record:', fileId);
       const { error: updateError } = await supabase
         .from('job_descriptions')
         .update({ 
@@ -106,33 +74,22 @@ async function processWithLLM(jobDescription: string, fileId?: string) {
         .single();
 
       if (updateError) {
-        console.error('Error updating parsed content:', updateError);
         throw new Error(`Failed to update job description: ${updateError.message}`);
       }
     }
 
     return parsedDescription;
   } catch (error) {
-    console.error('Error in LLM processing:', error);
-    
     if (fileId) {
-      try {
-        const { error: updateError } = await supabase
-          .from('job_descriptions')
-          .update({ 
-            status: 'error',
-            parsed_content: null 
-          })
-          .eq('id', fileId)
-          .select()
-          .single();
-
-        if (updateError) {
-          console.error('Error updating error status:', updateError);
-        }
-      } catch (dbError) {
-        console.error('Failed to update error status:', dbError);
-      }
+      const { error: updateError } = await supabase
+        .from('job_descriptions')
+        .update({ 
+          status: 'error',
+          parsed_content: null 
+        })
+        .eq('id', fileId)
+        .select()
+        .single();
     }
     
     throw error instanceof Error 
@@ -144,8 +101,6 @@ async function processWithLLM(jobDescription: string, fileId?: string) {
 export async function POST(request: Request) {
   try {
     const contentType = request.headers.get('content-type');
-    console.log('Request content type:', contentType);
-
     let rawJobDescription: string;
     let fileId: string | undefined;
 
@@ -171,7 +126,7 @@ export async function POST(request: Request) {
         .upload(filePath, file);
 
       if (uploadError) {
-        console.error('Error uploading content:', uploadError);
+        throw new Error(`Failed to upload content: ${uploadError.message}`);
       }
 
       const { error: insertError } = await supabase
@@ -185,11 +140,7 @@ export async function POST(request: Request) {
         });
 
       if (insertError) {
-        console.error('Error inserting record:', insertError);
-        return NextResponse.json(
-          { error: 'Failed to store job description' },
-          { status: 500 }
-        );
+        throw new Error(`Failed to store job description: ${insertError.message}`);
       }
 
     } else {

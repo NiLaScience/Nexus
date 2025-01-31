@@ -1,5 +1,7 @@
-import { openai, AI_MODEL } from './config';
-import { systemPrompts } from './schema';
+import { AI_MODEL } from './config';
+import { openai } from '@ai-sdk/openai';
+import { generateObject } from 'ai';
+import { systemPrompts, criteriaRefinementSchema } from './schema';
 import type { 
   WorkflowState, 
   CriteriaRefinement,
@@ -41,11 +43,7 @@ export async function refineCriteria(
   currentState: WorkflowState,
   feedback: CandidateFeedback[]
 ): Promise<CriteriaRefinement> {
-  const messages: (SystemMessage | UserMessage)[] = [
-    { role: 'system', content: systemPrompts.feedbackAnalysis.content },
-    {
-      role: 'user',
-      content: `Analyze the feedback and refine the job criteria to generate better matches.
+  const prompt = `Analyze the feedback and refine the job criteria to generate better matches.
       
 Current Criteria:
 ${JSON.stringify(currentState.refinedCriteria || currentState.scoringCriteria, null, 2)}
@@ -73,18 +71,51 @@ Return a structured refinement that clearly shows:
 - Which skills became more/less important
 - How experience requirements changed
 - What cultural attributes matter most
-- Clear reasoning for each adjustment`
+- Clear reasoning for each adjustment`;
+
+  try {
+    const result = await generateObject({
+      model: openai(AI_MODEL),
+      schema: criteriaRefinementSchema,
+      prompt,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompts.feedbackAnalysis.content
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    });
+
+    // Log any warnings for debugging
+    if (result.warnings?.length) {
+      console.warn('AI SDK Warnings:', result.warnings);
     }
-  ];
 
-  const response = await openai.chat.completions.create({
-    model: AI_MODEL,
-    messages,
-    temperature: 0.3,
-    response_format: { type: 'json_object' }
-  });
-
-  return JSON.parse(response.choices[0].message.content || '{}');
+    const refinement = criteriaRefinementSchema.parse(result.response);
+    return {
+      updatedSkills: {
+        required: refinement.refinedCriteria.requiredSkills.map(s => s.skill),
+        preferred: refinement.refinedCriteria.preferredSkills.map(s => s.skill),
+        removed: []
+      },
+      updatedExperience: {
+        minimum: refinement.refinedCriteria.experienceLevel.minYears,
+        preferred: refinement.refinedCriteria.experienceLevel.minYears + 2,
+        maximum: refinement.refinedCriteria.experienceLevel.maxYears
+      },
+      updatedCulturalCriteria: refinement.refinedCriteria.culturalAttributes.map(a => a.attribute),
+      updatedLeadershipCriteria: [],
+      reasonForChanges: refinement.explanation,
+      confidence: 0.85
+    };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error('Failed to refine criteria: ' + errorMessage);
+  }
 }
 
 export function shouldContinueWorkflow(state: WorkflowState): boolean {
@@ -106,11 +137,7 @@ export function updateWorkflowState(
   return {
     ...currentState,
     ...updates,
-    iterationCount: updates.iterationCount ?? currentState.iterationCount,
-    metadata: {
-      ...currentState.metadata,
-      ...updates.metadata
-    }
+    iterationCount: updates.iterationCount ?? currentState.iterationCount
   };
 }
 

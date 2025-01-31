@@ -21,11 +21,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       .single();
 
     if (error) {
-      console.error('Error fetching job description:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch job description' },
-        { status: 500 }
-      );
+      throw new Error('Failed to fetch job description');
     }
 
     if (!data) {

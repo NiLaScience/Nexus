@@ -9,6 +9,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // Input validation schema
 const feedbackSchema = z.object({
   candidateId: z.string().uuid(),
+  jobDescriptionId: z.string().uuid(),
   isGoodFit: z.boolean(),
   feedback: z.string().optional()
 });
@@ -17,13 +18,14 @@ export async function POST(req: NextRequest) {
   try {
     // Parse and validate the request body
     const body = await req.json();
-    const { candidateId, isGoodFit, feedback } = feedbackSchema.parse(body);
+    const { candidateId, jobDescriptionId, isGoodFit, feedback } = feedbackSchema.parse(body);
 
     // Store feedback in database
     const { data, error } = await supabase
       .from('candidate_feedback')
       .insert({
         candidate_id: candidateId,
+        job_description_id: jobDescriptionId,
         is_good_fit: isGoodFit,
         feedback
       })

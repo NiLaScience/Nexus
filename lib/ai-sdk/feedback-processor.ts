@@ -1,100 +1,118 @@
-import { openai, AI_MODEL } from './config';
-import { systemPrompts } from './schema';
+import { AI_MODEL } from './config';
+import { openai } from '@ai-sdk/openai';
+import { generateObject } from 'ai';
+import { 
+  systemPrompts, 
+  feedbackAnalysisSchema, 
+  criteriaRefinementSchema,
+  messageTemplates
+} from './schema';
 import type { 
   CandidateFeedback, 
   WorkflowState,
-  CriteriaRefinement,
-  SystemMessage,
-  UserMessage
+  CriteriaRefinement
 } from './types';
+import { z } from 'zod';
 
-interface FeedbackAnalysis {
-  patterns: {
-    positivePatterns: string[];
-    negativePatterns: string[];
-    skillGaps: string[];
-    culturalInsights: string[];
-  };
-  recommendations: {
-    skillsToEmphasize: string[];
-    skillsToDeemphasize: string[];
-    experienceAdjustments: string[];
-    culturalFitAdjustments: string[];
-  };
-  confidence: number;
-}
+type FeedbackAnalysis = z.infer<typeof feedbackAnalysisSchema>;
 
 export async function analyzeFeedbackPatterns(
   feedback: CandidateFeedback[]
 ): Promise<FeedbackAnalysis> {
-  const messages: (SystemMessage | UserMessage)[] = [
-    { role: 'system', content: systemPrompts.feedbackAnalysis.content },
-    {
-      role: 'user',
-      content: `Analyze the following candidate feedback and identify patterns and insights:
+  try {
+    // Transform feedback to match the expected format
+    const formattedFeedback = feedback.map(f => ({
+      ...f,
+      timestamp: new Date()
+    }));
 
-${feedback.map(f => {
-  const details = [
-    `Candidate ${f.candidateId}: ${f.isPositive ? 'Positive' : 'Negative'}`,
-    f.reason ? `Reason: ${f.reason}` : null,
-    f.criteria?.map(c => `${c.category}: ${c.score}/5${c.comment ? ` (${c.comment})` : ''}`).join(', ')
-  ].filter(Boolean).join(' - ');
-  
-  return `- ${details}`;
-}).join('\n')}
+    const prompt = messageTemplates.feedbackAnalysis.userPrompt(formattedFeedback);
 
-Provide a structured analysis including:
-1. Positive and negative patterns in feedback
-2. Identified skill gaps
-3. Cultural fit insights
-4. Specific recommendations for adjustments`
+    const result = await generateObject({
+      model: openai(AI_MODEL),
+      schema: feedbackAnalysisSchema,
+      prompt,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompts.feedbackAnalysis.content
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    });
+
+    // Log any warnings for debugging
+    if (result.warnings?.length) {
+      console.warn('AI SDK Warnings:', result.warnings);
     }
-  ];
 
-  const response = await openai.chat.completions.create({
-    model: AI_MODEL,
-    messages,
-    temperature: 0.3,
-    response_format: { type: 'json_object' }
-  });
-
-  return JSON.parse(response.choices[0].message.content || '{}');
+    return feedbackAnalysisSchema.parse(result.response);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error('Failed to analyze feedback: ' + errorMessage);
+  }
 }
 
 export async function generateCriteriaRefinements(
   currentState: WorkflowState,
   feedbackAnalysis: FeedbackAnalysis
 ): Promise<CriteriaRefinement> {
-  const messages: (SystemMessage | UserMessage)[] = [
-    { role: 'system', content: systemPrompts.feedbackAnalysis.content },
-    {
-      role: 'user',
-      content: `Based on the feedback analysis, refine the job criteria:
+  try {
+    // Transform the state to match the expected format
+    const formattedState = {
+      ...currentState,
+      scoringCriteria: {
+        ...currentState.scoringCriteria,
+        requiredSkills: currentState.scoringCriteria.requiredSkills.map(skill => ({
+          skill: typeof skill === 'string' ? skill : skill.skill,
+          weight: typeof skill === 'string' ? 3 : skill.weight
+        })),
+        preferredSkills: currentState.scoringCriteria.preferredSkills.map(skill => ({
+          skill: typeof skill === 'string' ? skill : skill.skill,
+          weight: typeof skill === 'string' ? 2 : skill.weight
+        })),
+        culturalCriteria: currentState.scoringCriteria.culturalCriteria.map(attr => ({
+          attribute: typeof attr === 'string' ? attr : attr.attribute,
+          weight: typeof attr === 'string' ? 3 : attr.weight
+        })),
+        leadershipCriteria: currentState.scoringCriteria.leadershipCriteria.map(attr => ({
+          attribute: typeof attr === 'string' ? attr : attr.attribute,
+          weight: typeof attr === 'string' ? 3 : attr.weight
+        }))
+      }
+    };
 
-Current Criteria:
-${JSON.stringify(currentState.refinedCriteria || currentState.scoringCriteria, null, 2)}
+    const prompt = messageTemplates.criteriaRefinement.userPrompt(formattedState, feedbackAnalysis);
 
-Feedback Analysis:
-${JSON.stringify(feedbackAnalysis, null, 2)}
+    const result = await generateObject({
+      model: openai(AI_MODEL),
+      schema: criteriaRefinementSchema,
+      prompt,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompts.feedbackAnalysis.content
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    });
 
-Generate refined criteria that:
-1. Adjusts skill requirements based on identified patterns
-2. Updates experience requirements based on feedback
-3. Refines cultural attributes based on insights
-4. Provides clear reasoning for each adjustment
-
-Return a structured refinement following the CriteriaRefinement schema.`
+    // Log any warnings for debugging
+    if (result.warnings?.length) {
+      console.warn('AI SDK Warnings:', result.warnings);
     }
-  ];
 
-  const response = await openai.chat.completions.create({
-    model: AI_MODEL,
-    messages,
-    temperature: 0.3,
-    response_format: { type: 'json_object' }
-  });
-
-  return JSON.parse(response.choices[0].message.content || '{}');
+    return criteriaRefinementSchema.parse(result.response);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error('Failed to generate criteria refinements: ' + errorMessage);
+  }
 }
 
 export function calculateFeedbackImpact(

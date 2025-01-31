@@ -1,21 +1,12 @@
-import OpenAI from 'openai';
+import { openai } from '@ai-sdk/openai';
 
 // Validate environment variables
-const requiredEnvVars = {
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-  ENABLE_AI_SDK: process.env.ENABLE_AI_SDK,
-};
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error('Missing required environment variable: OPENAI_API_KEY');
+}
 
-Object.entries(requiredEnvVars).forEach(([key, value]) => {
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
-  }
-});
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Create AI SDK provider instance
+export const aiProvider = openai;
 
 // Model configuration
 export const AI_MODEL = 'gpt-4-0125-preview';

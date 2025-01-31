@@ -14,6 +14,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileUp, Link } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -51,6 +58,7 @@ export default function CandidatesPage() {
   }>({ iterationCount: 0, isComplete: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [workflowType, setWorkflowType] = useState<'langgraph' | 'ai_sdk'>('langgraph');
 
   // Poll for results if we have a jobId
   useEffect(() => {
@@ -98,7 +106,6 @@ export default function CandidatesPage() {
       }
       return false;
     } catch (error) {
-      console.error('Error polling parse status:', error);
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
@@ -207,7 +214,6 @@ export default function CandidatesPage() {
 
       toast.success("Job description loaded successfully");
     } catch (error) {
-      console.error('Error loading job description:', error);
       setIsParsing(false);
       toast.error(error instanceof Error ? error.message : "Failed to load job description");
     }
@@ -226,7 +232,10 @@ export default function CandidatesPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ jobDescriptionId: jobId }),
+        body: JSON.stringify({ 
+          jobDescriptionId: jobId,
+          workflowType 
+        }),
       });
 
       const result = await response.json();
@@ -256,27 +265,65 @@ export default function CandidatesPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('candidate_feedback')
-        .insert({
-          candidate_id: candidateId,
-          job_description_id: jobId,
-          is_good_fit: isGoodFit
+      console.log('Submitting vote:', { candidateId, isGoodFit, jobId, workflowType });
+      
+      if (workflowType === 'ai_sdk') {
+        // Use the API endpoint for AI-SDK version
+        const response = await fetch('/api/candidates/feedback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            candidateId,
+            isGoodFit,
+            jobDescriptionId: jobId
+          }),
         });
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw new Error(error.message);
+        const result = await response.json();
+        console.log('Feedback response:', result);
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Failed to submit feedback');
+        }
+      } else {
+        // Use direct Supabase insertion for LangGraph version
+        const { error, data } = await supabase
+          .from('candidate_feedback')
+          .insert({
+            candidate_id: candidateId,
+            job_description_id: jobId,
+            is_good_fit: isGoodFit
+          })
+          .select()
+          .single();
+
+        console.log('Supabase response:', { error, data });
+
+        if (error) {
+          console.error('Supabase error:', error);
+          throw new Error(error.message);
+        }
       }
 
       // Mark candidate as voted
-      setVotedCandidates(prev => new Set([...prev, candidateId]));
+      setVotedCandidates(prev => {
+        const newSet = new Set([...prev, candidateId]);
+        console.log('Updated voted candidates:', [...newSet]);
+        return newSet;
+      });
+      
       toast.success("Feedback submitted successfully");
 
       // If we have votes for all candidates, check workflow state before generating new ones
-      const allVoted = candidates.every(c => 
-        votedCandidates.has(c.id) || c.id === candidateId
-      );
+      const allVoted = candidates.every(c => {
+        const hasVoted = votedCandidates.has(c.id) || c.id === candidateId;
+        console.log(`Candidate ${c.id}: voted=${hasVoted}`);
+        return hasVoted;
+      });
+
+      console.log('All candidates voted:', allVoted);
 
       if (allVoted && jobId) {
         if (workflowState.isComplete) {
@@ -359,23 +406,38 @@ export default function CandidatesPage() {
           <ParsedJobDescription parsedData={parsedData} />
           
           <Card className="p-6">
-            <Button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="w-full"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating Candidates...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="mr-2 h-4 w-4" />
-                  Generate Candidates
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-4">
+              <Select
+                value={workflowType}
+                onValueChange={(value: 'langgraph' | 'ai_sdk') => setWorkflowType(value)}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select workflow" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="langgraph">LangGraph</SelectItem>
+                  <SelectItem value="ai_sdk">AI SDK</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Button
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="flex-1"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating Candidates...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    Generate Candidates
+                  </>
+                )}
+              </Button>
+            </div>
           </Card>
 
           {candidates.length > 0 && (
