@@ -1,14 +1,16 @@
+// /lib/ai-sdk/feedback-processor.ts
+
 import { AI_MODEL } from './config';
 import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
-import { 
-  systemPrompts, 
-  feedbackAnalysisSchema, 
+import {
+  systemPrompts,
+  feedbackAnalysisSchema,
   criteriaRefinementSchema,
   messageTemplates
 } from './schema';
-import type { 
-  CandidateFeedback, 
+import type {
+  CandidateFeedback,
   WorkflowState,
   CriteriaRefinement
 } from './types';
@@ -16,105 +18,93 @@ import { z } from 'zod';
 
 type FeedbackAnalysis = z.infer<typeof feedbackAnalysisSchema>;
 
+/**
+ * Analyzes candidate feedback and extracts feedback patterns.
+ */
 export async function analyzeFeedbackPatterns(
   feedback: CandidateFeedback[]
 ): Promise<FeedbackAnalysis> {
   try {
-    // Transform feedback to match the expected format
+    // Format feedback for analysis
     const formattedFeedback = feedback.map(f => ({
       ...f,
       timestamp: new Date()
     }));
 
-    const prompt = messageTemplates.feedbackAnalysis.userPrompt(formattedFeedback);
+    console.log('Analyzing feedback patterns for:', formattedFeedback);
 
     const result = await generateObject({
       model: openai(AI_MODEL),
       schema: feedbackAnalysisSchema,
-      prompt,
       messages: [
-        {
-          role: 'system',
-          content: systemPrompts.feedbackAnalysis.content
-        },
+        systemPrompts.feedbackAnalysis,
         {
           role: 'user',
-          content: prompt
+          content: messageTemplates.feedbackAnalysis.userPrompt(formattedFeedback)
         }
       ]
     });
 
-    // Log any warnings for debugging
-    if (result.warnings?.length) {
-      console.warn('AI SDK Warnings:', result.warnings);
+    if (!result.object) {
+      console.error('Missing result.object in feedback analysis');
+      throw new Error('Failed to analyze feedback patterns');
     }
 
-    return feedbackAnalysisSchema.parse(result.response);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    throw new Error('Failed to analyze feedback: ' + errorMessage);
+    console.log('Feedback analysis result:', result.object);
+    return result.object;
+
+  } catch (error) {
+    console.error('Error analyzing feedback patterns:', error);
+    throw new Error(
+      `Failed to analyze feedback patterns: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
 
+/**
+ * Generates criteria refinements based on feedback analysis.
+ */
 export async function generateCriteriaRefinements(
   currentState: WorkflowState,
   feedbackAnalysis: FeedbackAnalysis
 ): Promise<CriteriaRefinement> {
   try {
-    // Transform the state to match the expected format
-    const formattedState = {
-      ...currentState,
-      scoringCriteria: {
-        ...currentState.scoringCriteria,
-        requiredSkills: currentState.scoringCriteria.requiredSkills.map(skill => ({
-          skill: typeof skill === 'string' ? skill : skill.skill,
-          weight: typeof skill === 'string' ? 3 : skill.weight
-        })),
-        preferredSkills: currentState.scoringCriteria.preferredSkills.map(skill => ({
-          skill: typeof skill === 'string' ? skill : skill.skill,
-          weight: typeof skill === 'string' ? 2 : skill.weight
-        })),
-        culturalCriteria: currentState.scoringCriteria.culturalCriteria.map(attr => ({
-          attribute: typeof attr === 'string' ? attr : attr.attribute,
-          weight: typeof attr === 'string' ? 3 : attr.weight
-        })),
-        leadershipCriteria: currentState.scoringCriteria.leadershipCriteria.map(attr => ({
-          attribute: typeof attr === 'string' ? attr : attr.attribute,
-          weight: typeof attr === 'string' ? 3 : attr.weight
-        }))
-      }
-    };
-
-    const prompt = messageTemplates.criteriaRefinement.userPrompt(formattedState, feedbackAnalysis);
+    console.log('Generating criteria refinements based on:', { currentState, feedbackAnalysis });
 
     const result = await generateObject({
       model: openai(AI_MODEL),
       schema: criteriaRefinementSchema,
-      prompt,
       messages: [
         {
           role: 'system',
-          content: systemPrompts.feedbackAnalysis.content
+          content: 'You are an expert AI recruiter refining job criteria based on candidate feedback patterns.'
         },
         {
           role: 'user',
-          content: prompt
+          content: messageTemplates.criteriaRefinement.userPrompt(currentState, feedbackAnalysis)
         }
       ]
     });
 
-    // Log any warnings for debugging
-    if (result.warnings?.length) {
-      console.warn('AI SDK Warnings:', result.warnings);
+    if (!result.object) {
+      console.error('Missing result.object in criteria refinement');
+      throw new Error('Failed to generate criteria refinements');
     }
 
-    return criteriaRefinementSchema.parse(result.response);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    throw new Error('Failed to generate criteria refinements: ' + errorMessage);
+    console.log('Generated criteria refinements:', result.object);
+    return result.object;
+
+  } catch (error) {
+    console.error('Error generating criteria refinements:', error);
+    throw new Error(
+      `Failed to generate criteria refinements: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
 
+/**
+ * Calculates an impact score based on feedback and analysis.
+ */
 export function calculateFeedbackImpact(
   feedback: CandidateFeedback[],
   analysis: FeedbackAnalysis
@@ -126,9 +116,7 @@ export function calculateFeedbackImpact(
     overallConfidence: 0
   };
 
-  // Calculate impact scores based on feedback patterns and analysis
   const totalFeedback = feedback.length;
-  const positiveFeedback = feedback.filter(f => f.isPositive).length;
   const feedbackWithCriteria = feedback.filter(f => f.criteria?.length).length;
 
   impacts.skillsImpact = analysis.recommendations.skillsToEmphasize.length * 0.2;
@@ -139,16 +127,36 @@ export function calculateFeedbackImpact(
   return impacts;
 }
 
+/**
+ * Determines whether criteria should be refined based on feedback patterns.
+ */
 export function shouldRefineBasedOnFeedback(
   feedback: CandidateFeedback[],
   analysis: FeedbackAnalysis
 ): boolean {
-  const impacts = calculateFeedbackImpact(feedback, analysis);
-  
-  // Determine if the feedback provides enough signal for refinement
-  const significantImpact = Object.values(impacts).some(impact => impact > 0.3);
-  const sufficientFeedback = feedback.length >= 3;
-  const highConfidence = analysis.confidence > 0.7;
+  if (!feedback.length) return false;
 
-  return significantImpact && sufficientFeedback && highConfidence;
-} 
+  // Calculate the ratio of positive to negative feedback
+  const positiveCount = feedback.filter(f => f.isPositive).length;
+  const negativeCount = feedback.length - positiveCount;
+  const positiveRatio = positiveCount / feedback.length;
+
+  // Check if we have enough feedback to make a decision
+  if (feedback.length < 3) return false;
+
+  // Check if the feedback is significantly negative
+  if (positiveRatio < 0.4) return true;
+
+  // Check if we have clear patterns in the analysis
+  const hasSignificantPatterns = 
+    analysis.patterns.skillGaps.length > 0 ||
+    analysis.patterns.culturalInsights.length > 0;
+
+  // Check if there are specific recommendations
+  const hasActionableRecommendations =
+    analysis.recommendations.skillsToEmphasize.length > 0 ||
+    analysis.recommendations.skillsToDeemphasize.length > 0 ||
+    analysis.recommendations.experienceAdjustments.length > 0;
+
+  return hasSignificantPatterns || hasActionableRecommendations;
+}

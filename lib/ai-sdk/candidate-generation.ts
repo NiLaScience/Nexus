@@ -1,3 +1,5 @@
+// /lib/ai-sdk/candidate-generation.ts
+
 import { AI_MODEL } from './config';
 import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
@@ -6,24 +8,39 @@ import type { CandidateGenerationConfig, GeneratedCandidate } from './types';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 
-// Define the response schema using the imported candidateProfileSchema
+// Define the response schema using the candidateProfileSchema (omitting id since we add our own)
 const candidatesResponseSchema = z.object({
   candidates: z.array(candidateProfileSchema.omit({ id: true }))
 });
 
+/**
+ * Generates candidate profiles using the AI SDK generateObject function.
+ * The feedback (if any) is included in the prompt.
+ *
+ * @param config - Candidate generation configuration
+ * @returns Array of generated candidates with assigned UUIDs
+ */
 export async function generateCandidates(
   config: CandidateGenerationConfig
 ): Promise<GeneratedCandidate[]> {
   const { jobDescription, selectionCriteria, numberOfCandidates, feedback } = config;
 
   try {
+    console.log('Generating candidates with config:', {
+      jobDescription: jobDescription.substring(0, 100) + '...',
+      selectionCriteria,
+      numberOfCandidates,
+      feedbackCount: feedback?.length || 0
+    });
+
     const result = await generateObject({
       model: openai(AI_MODEL),
       schema: candidatesResponseSchema,
       messages: [
         {
           role: 'system',
-          content: 'You are an expert AI recruiter. Generate realistic candidate profiles that match the job requirements. Return response as a structured JSON object with a "candidates" array.'
+          content:
+            'You are an expert AI recruiter. Generate realistic candidate profiles that match the job requirements. Each candidate should have unique characteristics while matching the core requirements.'
         },
         {
           role: 'user',
@@ -36,7 +53,7 @@ Selection Criteria:
 ${selectionCriteria.join('\n')}
 
 ${feedback ? `Consider this feedback from previous candidates:
-${feedback.map(f => `- Candidate ${f.candidateId}: ${f.isPositive ? 'Positive' : 'Negative'}${f.reason ? ` (${f.reason})` : ''}`).join('\n')}` : ''}
+${feedback.map(f => `- Candidate ${f.candidateid}: ${f.ispositive ? 'Positive' : 'Negative'}${f.reason ? ` (${f.reason})` : ''}`).join('\n')}` : ''}
 
 Important:
 - Each candidate must have a detailed background summary
@@ -49,7 +66,7 @@ Important:
       ]
     });
 
-    // Log the raw result for debugging
+    // Log raw AI result for debugging purposes.
     console.log('Raw AI result:', JSON.stringify(result, null, 2));
 
     if (!result.object) {
@@ -62,7 +79,7 @@ Important:
       throw new Error('Invalid candidates array in response');
     }
 
-    // Add UUIDs to candidates
+    // Add UUIDs to each candidate and ensure scoringDetails exist.
     const candidates = result.object.candidates.map(candidate => ({
       id: uuidv4(),
       ...candidate,
@@ -75,6 +92,7 @@ Important:
       }
     }));
 
+    console.log('Generated candidates:', candidates);
     return candidates as GeneratedCandidate[];
 
   } catch (error: unknown) {
@@ -82,4 +100,4 @@ Important:
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     throw new Error('Failed to generate candidates: ' + errorMessage);
   }
-} 
+}

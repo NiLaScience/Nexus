@@ -21,6 +21,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { WorkflowProgress } from '@/components/workflow-progress';
+import { FeedbackSummary } from '@/components/feedback-summary';
+import { CriteriaRefinement } from '@/components/criteria-refinement';
+import type { CandidateFeedback } from '@/lib/ai-sdk/types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -53,12 +57,19 @@ export default function CandidatesPage() {
   const [url, setUrl] = useState<string>("");
   const [votedCandidates, setVotedCandidates] = useState<Set<string>>(new Set());
   const [workflowState, setWorkflowState] = useState<{
+    currentPhase: 'INITIAL' | 'GENERATING' | 'REFINING' | 'COMPLETE';
     iterationCount: number;
     isComplete: boolean;
-  }>({ iterationCount: 0, isComplete: false });
+    refinedCriteria?: any;
+  }>({
+    currentPhase: 'INITIAL',
+    iterationCount: 0,
+    isComplete: false
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [workflowType, setWorkflowType] = useState<'langgraph' | 'ai_sdk'>('langgraph');
+  const [feedbackHistory, setFeedbackHistory] = useState<CandidateFeedback[]>([]);
 
   // Poll for results if we have a jobId
   useEffect(() => {
@@ -234,7 +245,12 @@ export default function CandidatesPage() {
         },
         body: JSON.stringify({ 
           jobDescriptionId: jobId,
-          workflowType 
+          workflowType,
+          feedback: [...votedCandidates].map(candidateId => ({
+            candidateId,
+            isPositive: true, // We'll get this from the actual vote
+            reason: 'Manual selection'
+          }))
         }),
       });
 
@@ -242,11 +258,13 @@ export default function CandidatesPage() {
       if (!response.ok) throw new Error(result.error || 'Failed to generate candidates');
 
       console.log('Generated candidates:', result);
-      if (result.data?.finalCandidates) {
+      if (result.data) {
         setCandidates(result.data.finalCandidates);
         setWorkflowState({
+          currentPhase: result.data.needsFeedback ? 'GENERATING' : 'COMPLETE',
           iterationCount: result.data.iterationCount,
-          isComplete: result.data.isComplete
+          isComplete: result.data.isComplete,
+          refinedCriteria: result.data.refinedCriteria
         });
       }
       toast.success("Candidates generated successfully");
@@ -267,45 +285,31 @@ export default function CandidatesPage() {
     try {
       console.log('Submitting vote:', { candidateId, isGoodFit, jobId, workflowType });
       
-      if (workflowType === 'ai_sdk') {
-        // Use the API endpoint for AI-SDK version
-        const response = await fetch('/api/candidates/feedback', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            candidateId,
-            isGoodFit,
-            jobDescriptionId: jobId
-          }),
-        });
+      const response = await fetch('/api/candidates/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          candidateId,
+          jobDescriptionId: jobId,
+          isGoodFit
+        }),
+      });
 
-        const result = await response.json();
-        console.log('Feedback response:', result);
+      const result = await response.json();
+      console.log('Feedback response:', result);
 
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || 'Failed to submit feedback');
-        }
-      } else {
-        // Use direct Supabase insertion for LangGraph version
-        const { error, data } = await supabase
-          .from('candidate_feedback')
-          .insert({
-            candidate_id: candidateId,
-            job_description_id: jobId,
-            is_good_fit: isGoodFit
-          })
-          .select()
-          .single();
-
-        console.log('Supabase response:', { error, data });
-
-        if (error) {
-          console.error('Supabase error:', error);
-          throw new Error(error.message);
-        }
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to submit feedback');
       }
+
+      // Update feedback history
+      setFeedbackHistory(prev => [...prev, {
+        candidateId,
+        isPositive: isGoodFit,
+        reason: 'Manual selection'
+      }]);
 
       // Mark candidate as voted
       setVotedCandidates(prev => {
@@ -316,7 +320,7 @@ export default function CandidatesPage() {
       
       toast.success("Feedback submitted successfully");
 
-      // If we have votes for all candidates, check workflow state before generating new ones
+      // If we have votes for all candidates, generate new ones
       const allVoted = candidates.every(c => {
         const hasVoted = votedCandidates.has(c.id) || c.id === candidateId;
         console.log(`Candidate ${c.id}: voted=${hasVoted}`);
@@ -440,6 +444,25 @@ export default function CandidatesPage() {
             </div>
           </Card>
 
+          {/* Workflow Progress */}
+          {workflowState.iterationCount > 0 && (
+            <WorkflowProgress
+              currentPhase={workflowState.currentPhase}
+              iterationCount={workflowState.iterationCount}
+              maxIterations={5}
+              isComplete={workflowState.isComplete}
+            />
+          )}
+
+          {/* Feedback Summary and Criteria Refinement */}
+          {feedbackHistory.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FeedbackSummary feedback={feedbackHistory} />
+              <CriteriaRefinement refinedCriteria={workflowState.refinedCriteria} />
+            </div>
+          )}
+
+          {/* Candidates Grid */}
           {candidates.length > 0 && (
             <div className="space-y-4">
               <h2 className="text-2xl font-bold">Generated Candidates</h2>
@@ -506,20 +529,6 @@ export default function CandidatesPage() {
             </div>
           )}
         </div>
-      )}
-
-      {workflowState.iterationCount > 0 && (
-        <Card className="p-4">
-          <IterationProgress 
-            current={workflowState.iterationCount} 
-            max={5} // MAX_ITERATIONS from workflow
-          />
-          {workflowState.isComplete && (
-            <p className="text-sm text-muted-foreground mt-2">
-              Process complete! Final candidates generated.
-            </p>
-          )}
-        </Card>
       )}
     </div>
   );

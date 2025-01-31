@@ -2,9 +2,8 @@ import { NextRequest } from 'next/server';
 import { candidateMatchingWorkflow } from '@/lib/workflows/candidate-matching';
 import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
-import { generateCandidates } from '@/lib/ai-sdk/candidate-generation';
-import { getJobDescription, getWorkflowState, storeGeneratedCandidates } from '@/lib/ai-sdk/database';
-import { initializeWorkflow } from '@/lib/ai-sdk/workflow';
+import { getJobDescription } from '@/lib/ai-sdk/database';
+import { runCandidateWorkflow } from '@/lib/ai-sdk/candidate-workflow';
 import { candidateMatchingRequestSchema } from '@/lib/ai-sdk/schema';
 import type { CandidateFeedback } from '@/lib/ai-sdk/types';
 
@@ -12,8 +11,48 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+function formatJobDescription(jobDesc: any): string {
+  console.log('Raw job description:', JSON.stringify(jobDesc, null, 2));
+
+  const parsed = jobDesc.parsed_content;
+  if (!parsed) {
+    return 'No job description available';
+  }
+
+  return `
+Title: ${parsed.title}
+
+Company: ${parsed.company.name}
+Industry: ${parsed.company.industry}
+${parsed.company.description ? `Company Description: ${parsed.company.description}` : ''}
+
+Location: ${parsed.location}
+Employment Type: ${parsed.employmentType}
+
+Required Skills:
+${parsed.requiredSkills.map((skill: string) => `- ${skill}`).join('\n')}
+
+${parsed.preferredSkills.length > 0 ? `Preferred Skills:
+${parsed.preferredSkills.map((skill: string) => `- ${skill}`).join('\n')}` : ''}
+
+Responsibilities:
+${parsed.responsibilities.map((resp: string) => `- ${resp}`).join('\n')}
+
+Qualifications:
+${parsed.qualifications.map((qual: string) => `- ${qual}`).join('\n')}
+
+Years of Experience Required: ${parsed.yearsOfExperience}
+
+Career Level: ${parsed.careerLevel.level}
+Management Responsibilities: ${parsed.careerLevel.managementResponsibilities ? 'Yes' : 'No'}
+Direct Reports: ${parsed.careerLevel.directReports}
+Scope: ${parsed.careerLevel.scope}
+`.trim();
+}
+
 export async function POST(req: NextRequest) {
   try {
+    console.log('Received candidate matching request');
     const { jobDescriptionId, workflowType, feedback } = 
       candidateMatchingRequestSchema.parse(await req.json());
 
@@ -39,69 +78,65 @@ export async function POST(req: NextRequest) {
       });
     } else {
       // Use AI SDK workflow
+      console.log('Using AI SDK workflow for job:', jobDescriptionId);
+      
+      // Get job description
       const jobDescription = await getJobDescription(jobDescriptionId);
       if (!jobDescription) {
+        console.error('Job description not found:', jobDescriptionId);
         return Response.json({
           success: false,
           error: 'Job description not found'
         }, { status: 404 });
       }
 
-      // Get or initialize workflow state
-      let workflowState = await getWorkflowState(jobDescriptionId);
-      if (!workflowState) {
-        workflowState = await initializeWorkflow(jobDescriptionId);
+      try {
+        // Convert feedback to match our lowercase convention
+        const formattedFeedback = feedback?.map(f => ({
+          candidateId: f.candidateId,
+          isPositive: f.isPositive,
+          reason: f.reason || 'Manual selection'
+        }));
+
+        // Format the job description into a string
+        const jobDescriptionText = formatJobDescription(jobDescription);
+        console.log('Formatted job description:', jobDescriptionText);
+
+        // Run the workflow
+        const result = await runCandidateWorkflow(
+          {
+            jobDescription: jobDescriptionText,
+            selectionCriteria: jobDescription.requirements || [],
+            numberOfCandidates: 5,
+            feedback: formattedFeedback
+          },
+          jobDescriptionId
+        );
+
+        console.log('Workflow completed successfully:', {
+          candidatesCount: result.candidates.length,
+          iterationCount: result.workflowState.iterationcount,
+          isComplete: result.workflowState.shouldterminate
+        });
+
+        return Response.json({
+          success: true,
+          data: {
+            finalCandidates: result.candidates,
+            iterationCount: result.workflowState.iterationcount,
+            isComplete: result.workflowState.shouldterminate,
+            needsFeedback: !result.workflowState.shouldterminate,
+            refinedCriteria: result.uiCriteria
+          }
+        });
+
+      } catch (error) {
+        console.error('Error running candidate workflow:', error);
+        return Response.json({
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to run candidate workflow'
+        }, { status: 500 });
       }
-
-      // Format selection criteria as array of strings
-      const criteria = workflowState.refinedCriteria || workflowState.scoringCriteria;
-      const selectionCriteria = [
-        `Required Skills: ${criteria.requiredSkills.map((s: { skill: string } | string) => 
-          typeof s === 'string' ? s : s.skill
-        ).join(', ')}`,
-        criteria.preferredSkills?.length ? 
-          `Preferred Skills: ${criteria.preferredSkills.map((s: { skill: string } | string) => 
-            typeof s === 'string' ? s : s.skill
-          ).join(', ')}` : null,
-        `Minimum Experience: ${criteria.experienceLevels?.minimum || 0} years`,
-        criteria.culturalCriteria?.length ? 
-          `Cultural Fit: ${criteria.culturalCriteria.map((c: { attribute: string } | string) => 
-            typeof c === 'string' ? c : c.attribute
-          ).join(', ')}` : null,
-        criteria.leadershipCriteria?.length ? 
-          `Leadership: ${criteria.leadershipCriteria.map((c: { attribute: string } | string) => 
-            typeof c === 'string' ? c : c.attribute
-          ).join(', ')}` : null
-      ].filter(Boolean) as string[];
-
-      console.log('Formatted selection criteria:', selectionCriteria);
-
-      // Generate candidates
-      const candidates = await generateCandidates({
-        jobDescription: jobDescription.parsed_content,
-        selectionCriteria,
-        numberOfCandidates: workflowState.iterationCount >= 4 ? 10 : 5,
-        feedback: feedback as CandidateFeedback[] || []
-      });
-
-      // Store candidates in database
-      const isFinal = workflowState.iterationCount >= 4;
-      await storeGeneratedCandidates(
-        jobDescriptionId,
-        candidates,
-        workflowState.iterationCount,
-        isFinal
-      );
-
-      return Response.json({
-        success: true,
-        data: {
-          finalCandidates: candidates,
-          iterationCount: workflowState.iterationCount,
-          isComplete: isFinal,
-          needsFeedback: !isFinal
-        }
-      });
     }
   } catch (error) {
     console.error('Error in candidate matching:', error);

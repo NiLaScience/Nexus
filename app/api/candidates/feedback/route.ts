@@ -1,10 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { storeFeedback } from '@/lib/ai-sdk/state-manager';
 
 // Input validation schema
 const feedbackSchema = z.object({
@@ -16,27 +12,34 @@ const feedbackSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('Received feedback request');
+
     // Parse and validate the request body
     const body = await req.json();
     const { candidateId, jobDescriptionId, isGoodFit, feedback } = feedbackSchema.parse(body);
 
-    // Store feedback in database
-    const { data, error } = await supabase
-      .from('candidate_feedback')
-      .insert({
-        candidate_id: candidateId,
-        job_description_id: jobDescriptionId,
-        is_good_fit: isGoodFit,
-        feedback
-      })
-      .select()
-      .single();
+    // Store feedback using state manager
+    await storeFeedback(jobDescriptionId, [{
+      candidateId,
+      isPositive: isGoodFit,
+      reason: feedback
+    }]);
 
-    if (error) throw new Error(`Failed to store feedback: ${error.message}`);
+    console.log('Feedback stored successfully:', {
+      jobDescriptionId,
+      candidateId,
+      isGoodFit,
+      feedback
+    });
 
     return Response.json({
       success: true,
-      data
+      data: {
+        jobDescriptionId,
+        candidateId,
+        isGoodFit,
+        feedback
+      }
     });
 
   } catch (error) {
