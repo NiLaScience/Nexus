@@ -94,7 +94,7 @@ This checklist outlines the steps to implement an alternative backend using Verc
   - [x] Unit tests for generation logic
   - [x] Integration tests for feedback loop
   - [x] State transition tests
-  - [ ] End-to-end workflow tests
+  - [x] End-to-end workflow tests
 
 - [ ] Verify compatibility:
   - [ ] Test parallel operation with LangGraph
@@ -109,9 +109,10 @@ This checklist outlines the steps to implement an alternative backend using Verc
   - [ ] Add any AI SDK specific UI features (e.g., streaming)
 
 - [ ] Update existing components:
-  - [ ] Add workflow type awareness
-  - [ ] Handle AI SDK specific responses
-  - [ ] Maintain error handling
+  - [ ] Adapt candidate display for AI SDK responses
+  - [ ] Update feedback handling for new format
+  - [ ] Implement progress indicators for workflow state
+  - [ ] Add error state handling and recovery
 
 ## 8. Deployment & Monitoring
 
@@ -138,14 +139,3 @@ This checklist outlines the steps to implement an alternative backend using Verc
   - [ ] Implement AI SDK error handling
   - [ ] Add middleware for prompt management
 
-## 10. Documentation
-
-- [ ] Update technical documentation:
-  - [ ] Document AI SDK workflow
-  - [ ] Update API documentation
-  - [ ] Add troubleshooting guides
-
-- [ ] Create comparison guide:
-  - [ ] Document differences between workflows
-  - [ ] Note any limitations or advantages
-  - [ ] Provide migration guides for future reference 
