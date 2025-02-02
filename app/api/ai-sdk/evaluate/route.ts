@@ -1,6 +1,6 @@
-import { NextRequest } from 'next/server';
-import { candidateEvaluationSchema, batchEvaluationResultsSchema } from '@/lib/ai-sdk/schema';
-import type { CandidateProfile, JobDescription, CandidateEvaluation } from '@/lib/ai-sdk/types';
+import { NextRequest, NextResponse } from 'next/server';
+import { batchEvaluationResultsSchema } from '@/lib/ai-sdk/validation';
+import type { CandidateProfile, JobDescription, CandidateEvaluation } from '@/lib/ai-sdk/types/base';
 import { z, ZodError } from 'zod';
 
 export const runtime = 'edge';
@@ -18,51 +18,43 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     
     // Validate request body
-    const { candidates } = evaluateRequestSchema.parse(body);
+    evaluateRequestSchema.parse(body);
     
     // TODO: Implement evaluation logic in lib/ai-sdk/evaluation.ts
     const evaluations: CandidateEvaluation[] = [];
     
     // Calculate batch metrics
-    const averageScore = evaluations.reduce((sum, eval) => sum + eval.overallScore, 0) / evaluations.length;
+    const averageScore = evaluations.reduce((sum, evaluation) => sum + evaluation.overallScore, 0) / evaluations.length;
     const topCandidates = evaluations
       .sort((a, b) => b.overallScore - a.overallScore)
-      .slice(0, 3)
-      .map(eval => eval.candidateId);
+      .slice(0, 3);
+    
+    // Format results
+    const results = {
+      evaluations,
+      batchMetrics: {
+        averageScore,
+        topCandidates,
+        totalCandidates: evaluations.length
+      }
+    };
 
-    // Create batch results
-    const results = batchEvaluationResultsSchema.parse({
-      jobId: candidates[0].jobDescription.id, // Assuming all candidates are for the same job
-      timestamp: new Date(),
-      candidates: evaluations,
-      averageScore,
-      topCandidates,
-      evaluationMetrics: {
-        skillCoverage: 0, // TODO: Implement these metrics
-        teamFit: 0,
-        diversityScore: 0,
-      },
-    });
+    // Validate results
+    const validatedResults = batchEvaluationResultsSchema.parse(results);
 
-    return new Response(JSON.stringify(results), {
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return NextResponse.json(validatedResults);
   } catch (error) {
     console.error('Error evaluating candidates:', error);
     
     if (error instanceof ZodError) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid request format',
-          details: error.errors 
-        }),
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        error: 'Invalid request format',
+        details: error.errors 
+      }, { status: 400 });
     }
 
-    return new Response(
-      JSON.stringify({ error: 'Failed to evaluate candidates' }),
-      { status: 500 }
-    );
+    return NextResponse.json({ 
+      error: 'Failed to evaluate candidates'
+    }, { status: 500 });
   }
 } 

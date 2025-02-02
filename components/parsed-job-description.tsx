@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface ParsedJobDescriptionProps {
-  parsedData: {
+  text?: string;
+  parsedData?: {
     title: string;
     requiredSkills: string[];
     preferredSkills: string[];
@@ -33,7 +34,21 @@ interface ParsedJobDescriptionProps {
   };
 }
 
-export function ParsedJobDescription({ parsedData }: ParsedJobDescriptionProps) {
+export function ParsedJobDescription({ text, parsedData }: ParsedJobDescriptionProps) {
+  if (text) {
+    return (
+      <Card className="p-4">
+        <CardContent>
+          <pre className="whitespace-pre-wrap text-sm">{text}</pre>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!parsedData) {
+    return null;
+  }
+
   return (
     <div className="space-y-4">
       {/* Header Card */}
@@ -177,4 +192,4 @@ export function ParsedJobDescription({ parsedData }: ParsedJobDescriptionProps) 
       </Accordion>
     </div>
   );
-} 
+}

@@ -53,7 +53,7 @@ Selection Criteria:
 ${selectionCriteria.join('\n')}
 
 ${feedback ? `Consider this feedback from previous candidates:
-${feedback.map(f => `- Candidate ${f.candidateid}: ${f.ispositive ? 'Positive' : 'Negative'}${f.reason ? ` (${f.reason})` : ''}`).join('\n')}` : ''}
+${feedback.map(f => `- Candidate ${f.candidateId}: ${f.isPositive ? 'Positive' : 'Negative'}${f.reason ? ` (${f.reason})` : ''}`).join('\n')}` : ''}
 
 Important:
 - Each candidate must have a detailed background summary

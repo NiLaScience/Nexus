@@ -1,44 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { formattedParserPrompt, jobDescriptionParser, llm } from '@/lib/llm/config';
-import { BaseMessage } from '@langchain/core/messages';
+import { jobDescriptionParser, llm } from '@/lib/llm/config';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-async function parseContent(content: Blob): Promise<string> {
-  const form = new FormData();
-  form.append('files', content);
-  form.append('strategy', 'fast');
-
-  const parserResponse = await fetch('https://parser.gawntlet.com', {
-    method: 'POST',
-    body: form,
-    headers: { 'accept': 'application/json' }
-  });
-
-  if (!parserResponse.ok) {
-    throw new Error('Failed to parse content');
-  }
-
-  const data = await parserResponse.json();
-  return data
-    .map((el: any) => el.text?.trim())
-    .filter(Boolean)
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n');
-}
-
-async function fetchUrlContent(url: string): Promise<Blob> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error('Failed to fetch URL content');
-  }
-  return response.blob();
-}
 
 async function processWithLLM(jobDescription: string, fileId?: string) {
   try {
@@ -63,32 +30,30 @@ async function processWithLLM(jobDescription: string, fileId?: string) {
     const parsedDescription = await structuredLLM.invoke(prompt);
 
     if (fileId) {
-      const { error: updateError } = await supabase
+      const { error } = await supabase
         .from('job_descriptions')
         .update({ 
           parsed_content: parsedDescription,
           status: 'completed'
         })
         .eq('id', fileId)
-        .select()
         .single();
 
-      if (updateError) {
-        throw new Error(`Failed to update job description: ${updateError.message}`);
+      if (error) {
+        throw new Error(`Failed to update job description: ${error.message}`);
       }
     }
 
     return parsedDescription;
   } catch (error) {
     if (fileId) {
-      const { error: updateError } = await supabase
+      await supabase
         .from('job_descriptions')
         .update({ 
           status: 'error',
           parsed_content: null 
         })
         .eq('id', fileId)
-        .select()
         .single();
     }
     
@@ -96,6 +61,36 @@ async function processWithLLM(jobDescription: string, fileId?: string) {
       ? error 
       : new Error('Unknown error in LLM processing');
   }
+}
+
+async function parseContent(file: Blob): Promise<string> {
+  const form = new FormData();
+  form.append('files', file);
+  form.append('strategy', 'fast');
+  
+  const response = await fetch('https://parser.gawntlet.com', {
+    method: 'POST',
+    body: form,
+    headers: { 'accept': 'application/json' }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Parser error: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.map((el: any) => el.text?.trim())
+             .filter(Boolean)
+             .join('\n')
+             .replace(/\n{3,}/g, '\n\n');
+}
+
+async function fetchUrlContent(url: string): Promise<Blob> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch URL: ${response.statusText}`);
+  }
+  return response.blob();
 }
 
 export async function POST(request: Request) {

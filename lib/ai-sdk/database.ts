@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { 
   CandidateFeedback, 
-  WorkflowState,
   CriteriaRefinement 
 } from './types';
 
@@ -12,7 +11,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 export async function storeGeneratedCandidates(
   jobDescriptionId: string,
   candidates: any[],
-  iterationCount: number,
   isFinal: boolean = false
 ) {
   const candidatesToInsert = candidates.map(candidate => ({

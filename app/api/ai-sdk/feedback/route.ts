@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { storeFeedback } from '@/lib/ai-sdk/database';
-import { feedbackRequestSchema } from '@/lib/ai-sdk/schema';
+import { feedbackRequestSchema } from '@/lib/ai-sdk/validation';
 
 export async function POST(req: NextRequest) {
   try {

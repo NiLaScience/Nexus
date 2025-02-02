@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
     await storeGeneratedCandidates(
       jobDescriptionId,
       candidates,
-      workflowState.iterationCount,
       isFinal
     );
 

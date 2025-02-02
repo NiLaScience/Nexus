@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { candidateMatchingWorkflow } from '@/lib/workflows/candidate-matching';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -7,7 +7,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     console.log('Request body:', body);
@@ -62,12 +62,12 @@ export async function POST(request: Request) {
 
     console.log('Workflow result:', result);
 
-    if (!result?.candidateProfiles?.length) {
+    if (!result?.candidates?.length) {
       throw new Error('No candidates generated');
     }
 
     return NextResponse.json({
-      candidates: result.candidateProfiles
+      candidates: result.candidates
     });
 
   } catch (error) {

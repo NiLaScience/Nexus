@@ -1,46 +1,36 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-type RouteParams = {
-  params: Promise<{ id: string }>;
-};
-
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(
+  request: Request
+) {
+  // Get id from URL
+  const id = request.url.split('/').pop();
+  
   try {
-    const { id } = await params;
-    
-    const { data, error } = await supabase
+    const { data: jobDescription, error } = await supabase
       .from('job_descriptions')
       .select('*')
       .eq('id', id)
       .single();
 
     if (error) {
-      throw new Error('Failed to fetch job description');
-    }
-
-    if (!data) {
+      console.error('Error fetching job description:', error);
       return NextResponse.json(
-        { error: 'Job description not found' },
+        { error: 'Failed to fetch job description' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({
-      text: data.raw_content,
-      parsed: data.parsed_content,
-      status: data.status || 'processing'
-    });
-
+    return NextResponse.json(jobDescription);
   } catch (error) {
-    console.error('Error in parse status route:', error);
+    console.error('Error in parse route:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to get parse status' },
+      { error: error instanceof Error ? error.message : 'Failed to fetch job description' },
       { status: 500 }
     );
   }

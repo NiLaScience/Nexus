@@ -42,7 +42,7 @@ export async function parseJobDescriptionAction(formData: FormData) {
 
     // Store in Supabase
     const supabase = await createClient();
-    const { data: jobDescription, error: insertError } = await supabase
+    const { error: insertError } = await supabase
       .from('job_descriptions')
       .insert({
         title: 'Untitled Job Description',

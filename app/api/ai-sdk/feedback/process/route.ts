@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { 
   analyzeFeedbackPatterns, 
   generateCriteriaRefinements, 
@@ -6,8 +6,7 @@ import {
 } from '@/lib/ai-sdk/feedback-processor';
 import { 
   storeFeedback,
-  storeIterationState,
-  updateJobDescription 
+  storeIterationState
 } from '@/lib/ai-sdk/database';
 import type { CandidateFeedback, WorkflowState } from '@/lib/ai-sdk/types';
 import { z } from 'zod';
@@ -33,85 +32,57 @@ export async function POST(req: NextRequest) {
 
     // Check if we should refine criteria
     const shouldRefine = await shouldRefineBasedOnFeedback(feedback, feedbackAnalysis);
-    let updatedState = { ...workflowState };
+    let updatedState: WorkflowState = {
+      ...workflowState,
+      currentPhase: 'REFINING',
+      iterationCount: workflowState.iterationCount + 1,
+      shouldTerminate: shouldRefine
+    };
 
     if (shouldRefine) {
       // Generate criteria refinements
       const refinements = await generateCriteriaRefinements(workflowState, feedbackAnalysis);
-      
-      // Update state with refinements
-      updatedState = {
-        ...updatedState,
-        refinedCriteria: refinements,
-        currentPhase: 'GENERATING',
-        iterationCount: workflowState.iterationCount + 1
-      };
-    } else {
-      // Skip refinement, move directly to generation
-      updatedState = {
-        ...updatedState,
-        currentPhase: 'GENERATING',
-        iterationCount: workflowState.iterationCount + 1
-      };
+
+      if (refinements) {
+        // Update workflow state with refinements
+        updatedState = {
+          ...updatedState,
+          refinedCriteria: refinements
+        };
+
+        // Store the updated state
+        await storeIterationState(
+          workflowState.jobDescriptionId,
+          workflowState.iterationCount,
+          refinements,
+          feedbackAnalysis,
+          shouldRefine
+        );
+      }
     }
 
-    // Check if this is the final iteration
-    if (updatedState.iterationCount >= 4) {
-      updatedState.shouldTerminate = true;
-      await updateJobDescription(workflowState.jobDescriptionId, {
-        status: 'completed',
-        final_criteria: updatedState.refinedCriteria || updatedState.scoringCriteria
-      });
-    }
-
-    // Store the updated state
-    await storeIterationState(
-      workflowState.jobDescriptionId,
-      updatedState.iterationCount,
-      updatedState.refinedCriteria || {
-        updatedSkills: {
-          required: updatedState.scoringCriteria.requiredSkills,
-          preferred: updatedState.scoringCriteria.preferredSkills,
-          removed: []
-        },
-        updatedExperience: {
-          minimum: updatedState.scoringCriteria.experienceLevels.minimum,
-          preferred: updatedState.scoringCriteria.experienceLevels.preferred,
-          maximum: updatedState.scoringCriteria.experienceLevels.maximum
-        },
-        updatedCulturalCriteria: updatedState.scoringCriteria.culturalCriteria,
-        updatedLeadershipCriteria: updatedState.scoringCriteria.leadershipCriteria,
-        reasonForChanges: 'Initial criteria',
-        confidence: 1.0
-      },
-      feedbackAnalysis,
-      updatedState.shouldTerminate
-    );
-
-    return new Response(JSON.stringify({
-      state: updatedState,
-      analysis: feedbackAnalysis,
-      shouldContinue: !updatedState.shouldTerminate
-    }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-  } catch (error) {
-    console.error('Error processing feedback:', error);
-    
-    if (error instanceof z.ZodError) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid request format',
-          details: error.errors 
-        }),
-        { status: 400 }
+    // Store updated state
+    if (updatedState.refinedCriteria) {
+      await storeIterationState(
+        workflowState.jobDescriptionId,
+        workflowState.iterationCount,
+        updatedState.refinedCriteria,
+        feedbackAnalysis,
+        updatedState.shouldTerminate
       );
     }
 
-    return new Response(
-      JSON.stringify({ error: 'Failed to process feedback' }),
-      { status: 500 }
-    );
+    return NextResponse.json({ 
+      success: true,
+      state: updatedState,
+      shouldRefine,
+      feedbackAnalysis
+    });
+  } catch (error) {
+    console.error('Error processing feedback:', error);
+    return NextResponse.json({ 
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to process feedback'
+    }, { status: 500 });
   }
 } 

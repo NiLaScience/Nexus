@@ -12,82 +12,49 @@ import {
   storeFeedback,
   loadFeedback,
   storeCriteriaRefinement,
-  loadLatestRefinement,
   storeGeneratedCandidates
 } from './state-manager';
 import type {
-  CandidateGenerationConfig,
   WorkflowState,
-  CandidateFeedback,
-  GeneratedCandidate
-} from './types';
+  CandidateProfile,
+  CandidateFeedback
+} from './types/base';
+import type { CandidateGenerationConfig } from './types';
+import { v4 as uuidv4 } from 'uuid';
 
 const MAX_ITERATIONS = 5;
 
 // Format criteria for UI consumption
 function formatCriteriaForUI(workflowState: WorkflowState) {
-  if (!workflowState.refinedcriteria) return undefined;
+  if (!workflowState.refinedCriteria) return undefined;
 
-  const { refinedcriteria } = workflowState.refinedcriteria;
+  const { refinedCriteria } = workflowState.refinedCriteria;
   return {
-    requiredSkills: refinedcriteria.requiredskills.map(s => ({
-      skill: s.skill,
-      importance: s.importance,
-      reason: s.reason
-    })),
-    preferredSkills: refinedcriteria.preferredskills.map(s => ({
-      skill: s.skill,
-      importance: s.importance,
-      reason: s.reason
-    })),
-    experienceLevel: {
-      minYears: refinedcriteria.experiencelevel.minyears,
-      maxYears: refinedcriteria.experiencelevel.maxyears,
-      reason: refinedcriteria.experiencelevel.reason
-    },
-    culturalAttributes: refinedcriteria.culturalattributes.map(a => ({
-      attribute: a.attribute,
-      importance: a.importance,
-      reason: a.reason
-    })),
-    adjustments: refinedcriteria.adjustments
+    requiredSkills: refinedCriteria.requiredSkills,
+    preferredSkills: refinedCriteria.preferredSkills,
+    experienceLevel: refinedCriteria.experienceLevel,
+    culturalAttributes: refinedCriteria.culturalAttributes
   };
 }
 
 // Format selection criteria based on current state
 function formatSelectionCriteria(workflowState: WorkflowState): string[] {
-  const criteria = workflowState.scoringcriteria;
-  const refinements = workflowState.refinedcriteria?.refinedcriteria;
+  const criteria = workflowState.scoringCriteria;
+  const refinements = workflowState.refinedCriteria?.refinedCriteria;
 
   const selectionCriteria = [
-    // Required Skills
-    `Required Skills: ${
-      refinements 
-        ? refinements.requiredskills.map(s => s.skill).join(', ')
-        : criteria.requiredskills.map(s => typeof s === 'string' ? s : s.skill).join(', ') || 'None specified'
-    }`,
+    ...criteria.requiredSkills.map(s => s.skill),
+    ...criteria.preferredSkills.map(s => s.skill)
+  ];
 
-    // Preferred Skills
-    `Preferred Skills: ${
-      refinements
-        ? refinements.preferredskills.map(s => s.skill).join(', ')
-        : criteria.preferredskills.map(s => typeof s === 'string' ? s : s.skill).join(', ') || 'None specified'
-    }`,
+  if (refinements) {
+    selectionCriteria.push(
+      ...refinements.requiredSkills.map(s => s.skill),
+      ...refinements.preferredSkills.map(s => s.skill)
+    );
+  }
 
-    // Experience
-    refinements
-      ? `Experience Level: ${refinements.experiencelevel.minyears}-${refinements.experiencelevel.maxyears} years`
-      : `Experience Level: ${criteria.experiencelevels.minimum}-${criteria.experiencelevels.maximum} years`,
-
-    // Cultural Fit
-    `Cultural Attributes: ${
-      refinements
-        ? refinements.culturalattributes.map(c => c.attribute).join(', ')
-        : criteria.culturalcriteria.map(c => typeof c === 'string' ? c : c.attribute).join(', ') || 'None specified'
-    }`
-  ].filter(Boolean);
-
-  return selectionCriteria;
+  return Array.from(new Set(selectionCriteria));
 }
 
 /**
@@ -103,7 +70,7 @@ export async function runCandidateWorkflow(
   config: CandidateGenerationConfig,
   jobDescriptionId: string
 ): Promise<{
-  candidates: GeneratedCandidate[];
+  candidates: CandidateProfile[];
   workflowState: WorkflowState;
   feedback: CandidateFeedback[];
   uiCriteria?: ReturnType<typeof formatCriteriaForUI>;
@@ -116,14 +83,14 @@ export async function runCandidateWorkflow(
     console.log('Loaded workflow state:', workflowState);
 
     // Check if we've already reached max iterations
-    if (workflowState.iterationcount >= MAX_ITERATIONS) {
+    if (workflowState.iterationCount >= MAX_ITERATIONS) {
       console.log('Maximum iterations reached, returning current state');
       return { 
         candidates: [], 
         workflowState: {
           ...workflowState,
-          shouldterminate: true,
-          currentphase: 'COMPLETE'
+          shouldTerminate: true,
+          currentPhase: 'COMPLETE'
         }, 
         feedback: [],
         uiCriteria: formatCriteriaForUI(workflowState)
@@ -154,53 +121,58 @@ export async function runCandidateWorkflow(
         console.log('Generated criteria refinements:', refinements);
 
         if (refinements) {
-          await storeCriteriaRefinement(jobDescriptionId, refinements, workflowState.iterationcount);
+          await storeCriteriaRefinement(jobDescriptionId, refinements, workflowState.iterationCount);
           workflowState = await updateWorkflowState(jobDescriptionId, {
-            refinedcriteria: refinements,
-            currentphase: 'REFINING'
+            refinedCriteria: refinements,
+            currentPhase: 'REFINING'
           });
           console.log('Updated workflow state with refinements');
         }
       }
     }
 
-    let candidates: GeneratedCandidate[] = [];
+    let candidates: CandidateProfile[] = [];
 
     // Generate candidates with current criteria
     const generationConfig: CandidateGenerationConfig = {
       jobDescription: config.jobDescription,
       selectionCriteria: formatSelectionCriteria(workflowState),
-      numberOfCandidates: workflowState.iterationcount === MAX_ITERATIONS - 1 ? 10 : 5,
+      numberOfCandidates: workflowState.iterationCount === MAX_ITERATIONS - 1 ? 10 : 5,
       feedback: aggregatedFeedback
     };
 
     console.log('Generating candidates with config:', generationConfig);
 
     try {
-      candidates = await generateCandidates(generationConfig);
-      console.log('Generated candidates:', candidates);
+      const generatedCandidates = await generateCandidates(generationConfig);
+      console.log('Generated candidates:', generatedCandidates);
+
+      // Convert to CandidateProfile type
+      candidates = generatedCandidates.map(c => ({
+        ...c,
+        id: uuidv4()
+      }));
 
       // Store candidates in database
-      const isFinal = workflowState.iterationcount === MAX_ITERATIONS - 1;
+      const isFinal = workflowState.iterationCount === MAX_ITERATIONS - 1;
       await storeGeneratedCandidates(
         jobDescriptionId,
         candidates,
-        workflowState.iterationcount,
         isFinal
       );
       console.log('Stored candidates in database');
 
       // Update workflow state
       workflowState = await updateWorkflowState(jobDescriptionId, {
-        iterationcount: workflowState.iterationcount + 1,
-        currentphase: 'GENERATING',
-        shouldterminate: workflowState.iterationcount >= MAX_ITERATIONS - 1
+        iterationCount: workflowState.iterationCount + 1,
+        currentPhase: 'EVALUATING',
+        shouldTerminate: workflowState.iterationCount >= MAX_ITERATIONS - 1
       });
 
       // If this was the last iteration, mark as complete
-      if (workflowState.iterationcount >= MAX_ITERATIONS) {
+      if (workflowState.iterationCount >= MAX_ITERATIONS) {
         workflowState = await updateWorkflowState(jobDescriptionId, {
-          currentphase: 'COMPLETE'
+          currentPhase: 'COMPLETE'
         });
       }
 

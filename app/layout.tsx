@@ -40,7 +40,6 @@ export default async function RootLayout({
     .single();
 
   const isCustomer = profile?.role === 'customer';
-  const isAdmin = profile?.role === 'admin';
 
   return (
     <html lang="en" className={geistSans.className} suppressHydrationWarning>

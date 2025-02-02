@@ -240,7 +240,7 @@ Return a JSON object.`;
         const initialCriteriaStr = await llm.invoke(initialCriteriaPrompt);
         let parsedInitialCriteria;
         try {
-          parsedInitialCriteria = JSON.parse(initialCriteriaStr);
+          parsedInitialCriteria = JSON.parse(initialCriteriaStr.toString());
         } catch (e) {
           console.error("Error parsing initial criteria, using defaults.");
           parsedInitialCriteria = {
@@ -543,20 +543,6 @@ Return a JSON object with the refined criteria and an explanation.`;
   }
 }
 
-/**
- * Node: Decide whether to continue iterating.
- */
-function shouldContinue(state: typeof StateAnnotation.State): "iterate" | "complete" {
-  console.log('\n🔄 Checking iteration status...');
-  console.log('Iteration:', state.iterationCount);
-  console.log('Feedback exists:', !!state.userFeedback?.length);
-  if (state.iterationCount >= MAX_ITERATIONS - 1 || !state.userFeedback?.length) {
-    console.log('🛑 Workflow complete');
-    return "complete";
-  }
-  console.log('➡️ Continue iterating');
-  return "iterate";
-}
 
 /**
  * Node: Wait for feedback.

@@ -8,13 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Loader2, Upload, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { createClient } from '@supabase/supabase-js';
 import { HandThumbUpIcon, HandThumbDownIcon } from '@heroicons/react/24/solid';
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileUp, Link } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -23,178 +17,172 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { WorkflowProgress } from '@/components/workflow-progress';
-import { FeedbackSummary } from '@/components/feedback-summary';
 import { CriteriaRefinement } from '@/components/criteria-refinement';
-import type { CandidateFeedback } from '@/lib/ai-sdk/types';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+interface WorkflowState {
+  currentPhase: 'INITIAL' | 'GENERATING' | 'REFINING' | 'COMPLETE';
+  iterationCount: number;
+  isComplete: boolean;
+  refinedCriteria?: {
+    requiredSkills: Array<{
+      skill: string;
+      importance: number;
+      reason: string;
+    }>;
+    preferredSkills: Array<{
+      skill: string;
+      importance: number;
+      reason: string;
+    }>;
+    experienceLevel: {
+      minYears: number;
+      maxYears: number;
+      reason: string;
+    };
+    culturalAttributes: Array<{
+      attribute: string;
+      importance: number;
+      reason: string;
+    }>;
+    adjustments: Array<{
+      aspect: string;
+      change: "increased" | "decreased" | "unchanged";
+      reason: string;
+    }>;
+  };
+}
+
+interface Candidate {
+  id: string;
+  name: string;
+  background: string;
+  skills: string[];
+  yearsOfExperience: number;
+  achievements: string[];
+  matchScore: number;
+  reasonForMatch: string;
+  scoringDetails?: {
+    skillsScore: number;
+    experienceScore: number;
+    achievementsScore: number;
+    culturalScore: number;
+    leadershipScore?: number;
+    scoreBreakdown: string;
+  };
+}
 
 export default function CandidatesPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [parsedData, setParsedData] = useState<any>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [candidates, setCandidates] = useState<any[]>([]);
+  const [jobText, setJobText] = useState<string>("");
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [isParsing, setIsParsing] = useState(false);
-  const [url, setUrl] = useState<string>("");
   const [votedCandidates, setVotedCandidates] = useState<Set<string>>(new Set());
-  const [workflowState, setWorkflowState] = useState<{
-    currentPhase: 'INITIAL' | 'GENERATING' | 'REFINING' | 'COMPLETE';
-    iterationCount: number;
-    isComplete: boolean;
-    refinedCriteria?: any;
-  }>({
+  const [workflowState, setWorkflowState] = useState<WorkflowState>({
     currentPhase: 'INITIAL',
     iterationCount: 0,
     isComplete: false
   });
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [workflowType, setWorkflowType] = useState<'langgraph' | 'ai_sdk'>('ai_sdk');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [workflowType, setWorkflowType] = useState<'langgraph' | 'ai_sdk'>('langgraph');
-  const [feedbackHistory, setFeedbackHistory] = useState<CandidateFeedback[]>([]);
 
-  // Poll for parsing results if jobId is set.
   useEffect(() => {
-    if (!jobId) return;
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/candidates/parse/${jobId}`);
-        const data = await response.json();
-        if (response.ok) {
-          if (data.parsed) {
-            setParsedData(data.parsed);
-            clearInterval(pollInterval);
-          }
-        } else {
-          console.error('Error polling for results:', data.error);
-        }
-      } catch (error) {
-        console.error('Error polling for results:', error);
-      }
-    }, 2000);
-    return () => clearInterval(pollInterval);
+    // Reset state when job ID changes
+    if (jobId) {
+      setVotedCandidates(new Set());
+      setCandidates([]);
+      setWorkflowState({
+        currentPhase: 'INITIAL',
+        iterationCount: 0,
+        isComplete: false
+      });
+    }
   }, [jobId]);
 
-  // Poll for parsing status.
-  const pollParseStatus = async (id: string) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsParsing(true);
     try {
-      const response = await fetch(`/api/candidates/parse/${id}`);
-      const data = await response.json();
-      if (response.ok) {
-        if (data.status === 'completed' && data.parsed) {
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-          setIsParsing(false);
-          toast.success("Job description parsed successfully");
-          return true;
-        } else if (data.status === 'error') {
-          throw new Error('Failed to parse job description');
-        }
-      }
-      return false;
-    } catch (error) {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-      setIsParsing(false);
-      toast.error(error instanceof Error ? error.message : "Failed to check parse status");
-      return false;
-    }
-  };
-
-  // Cleanup polling on unmount.
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setError(null);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!file) {
-      setError('Please select a file first');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setParsedData(null);
-    try {
-      setIsParsing(true);
       const formData = new FormData();
       formData.append('file', file);
+
       const response = await fetch('/api/candidates/parse', {
         method: 'POST',
         body: formData,
       });
-      const data = await response.json();
-      if (response.ok) {
-        setJobId(data.id);
-        pollIntervalRef.current = setInterval(() => pollParseStatus(data.id), 2000);
-      } else {
-        setError(data.error || 'Failed to parse job description');
-      }
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to parse file');
+
+      setJobId(result.id);
+      setJobText(result.text);
+      toast.success("File parsed successfully");
     } catch (error) {
-      setError('An error occurred while uploading the file');
-      console.error('Upload error:', error);
+      console.error('Error parsing file:', error);
+      toast.error(error instanceof Error ? error.message : "Failed to parse file");
     } finally {
-      setLoading(false);
+      setIsParsing(false);
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
+  const handlePaste = async (event: React.ClipboardEvent) => {
+    const text = event.clipboardData.getData('text');
+    if (!text) return;
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile && droppedFile.type === 'application/pdf') {
-      setFile(droppedFile);
-      setError(null);
-    } else {
-      setError('Please drop a PDF file');
-    }
-  };
-
-  const handleUrlSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!url) return;
+    setIsParsing(true);
+
     try {
-      setIsParsing(true);
       const response = await fetch('/api/candidates/parse', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ jobDescription: text }),
       });
+
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to load job description');
+      if (!response.ok) throw new Error(result.error || 'Failed to parse text');
+
       setJobId(result.id);
-      pollIntervalRef.current = setInterval(() => pollParseStatus(result.id), 2000);
-      toast.success("Job description loaded successfully");
+      setJobText(result.text);
+      toast.success("Text parsed successfully");
     } catch (error) {
+      console.error('Error parsing text:', error);
+      toast.error(error instanceof Error ? error.message : "Failed to parse text");
+    } finally {
       setIsParsing(false);
-      toast.error(error instanceof Error ? error.message : "Failed to load job description");
+    }
+  };
+
+  const handleDrop = async (event: React.DragEvent) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (!file) return;
+
+    setIsParsing(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/candidates/parse', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to parse file');
+
+      setJobId(result.id);
+      setJobText(result.text);
+      toast.success("File parsed successfully");
+    } catch (error) {
+      console.error('Error parsing file:', error);
+      toast.error(error instanceof Error ? error.message : "Failed to parse file");
+    } finally {
+      setIsParsing(false);
     }
   };
 
@@ -215,7 +203,7 @@ export default function CandidatesPage() {
           workflowType,
           feedback: [...votedCandidates].map(candidateId => ({
             candidateId,
-            isPositive: true, // This will be replaced by actual vote value.
+            isPositive: true,
             reason: 'Manual selection'
           }))
         }),
@@ -241,222 +229,211 @@ export default function CandidatesPage() {
     }
   };
 
-  const handleVote = async (candidateId: string, isGoodFit: boolean) => {
-    if (!candidateId || !jobId) {
-      toast.error('Invalid candidate ID or job ID');
-      return;
+  const handleVote = (candidateId: string) => {
+    const newVotes = new Set(votedCandidates);
+    if (newVotes.has(candidateId)) {
+      newVotes.delete(candidateId);
+    } else {
+      newVotes.add(candidateId);
     }
-    try {
-      console.log('Submitting vote:', { candidateId, isGoodFit, jobId, workflowType });
-      const response = await fetch('/api/candidates/feedback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          candidateId,
-          jobDescriptionId: jobId,
-          isGoodFit
-        }),
-      });
-      const result = await response.json();
-      console.log('Feedback response:', result);
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to submit feedback');
-      }
-      // Update local feedback history.
-      setFeedbackHistory(prev => [...prev, {
-        candidateId,
-        isPositive: isGoodFit,
-        reason: 'Manual selection'
-      }]);
-      // Mark candidate as voted.
-      setVotedCandidates(prev => new Set([...prev, candidateId]));
-      toast.success("Feedback submitted successfully");
-      // Check if all candidates have been voted on.
-      const allVoted = candidates.every(c => {
-        const hasVoted = votedCandidates.has(c.id) || c.id === candidateId;
-        console.log(`Candidate ${c.id}: voted=${hasVoted}`);
-        return hasVoted;
-      });
-      console.log('All candidates voted:', allVoted);
-      if (allVoted && jobId) {
-        if (workflowState.isComplete) {
-          toast.info("Maximum iterations reached or no more feedback needed. Thank you for your feedback!");
-          return;
-        }
-        toast.info("Generating new candidates based on feedback...");
-        await handleGenerate();
-      }
-    } catch (error) {
-      console.error('Error submitting vote:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to submit feedback');
-    }
+    setVotedCandidates(newVotes);
   };
 
   return (
     <div className="container mx-auto p-4 space-y-8">
-      <Card className="p-6">
-        <div className="space-y-4">
-          <h1 className="text-2xl font-bold">Parse Job Description</h1>
-          <div 
-            className={cn(
-              "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
-              "hover:border-primary/50 hover:bg-muted/50",
-              error ? "border-destructive" : "border-muted-foreground/25"
-            )}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".pdf"
-              className="hidden"
-            />
-            <div className="flex flex-col items-center gap-2">
-              <Upload className="h-8 w-8 text-muted-foreground" />
-              {file ? (
-                <p className="text-sm">{file.name}</p>
+      <div className="flex flex-col space-y-4">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Job Description</h1>
+          <div className="flex items-center space-x-4">
+            <Select
+              value={workflowType}
+              onValueChange={(value: 'langgraph' | 'ai_sdk') => setWorkflowType(value)}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select workflow type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="langgraph">LangGraph</SelectItem>
+                <SelectItem value="ai_sdk">AI SDK</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              variant="outline"
+              disabled={isParsing}
+            >
+              {isParsing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Parsing...
+                </>
               ) : (
                 <>
-                  <p className="text-lg font-medium">Drop your PDF here or click to browse</p>
-                  <p className="text-sm text-muted-foreground">PDF files only, up to 10MB</p>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload
                 </>
               )}
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <Button 
-              onClick={handleUpload}
-              disabled={!file || loading || isParsing}
-              className="min-w-[120px]"
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileChange}
+              accept=".pdf,.doc,.docx,.txt"
+            />
+            <Button
+              onClick={handleGenerate}
+              disabled={!jobId || isGenerating}
+              className="bg-blue-600 hover:bg-blue-700"
             >
-              {(loading || isParsing) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {loading ? 'Uploading...' : isParsing ? 'Parsing...' : 'Upload & Parse'}
+              {isGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  Generate
+                </>
+              )}
             </Button>
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          {isParsing && !error && (
-            <div className="flex items-center justify-center text-sm text-muted-foreground">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Analyzing job description...
-            </div>
-          )}
         </div>
-      </Card>
-      {parsedData && (
-        <div className="space-y-4">
-          <ParsedJobDescription parsedData={parsedData} />
-          <Card className="p-6">
-            <div className="flex items-center gap-4">
-              <Select
-                value={workflowType}
-                onValueChange={(value: 'langgraph' | 'ai_sdk') => setWorkflowType(value)}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select workflow" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="langgraph">LangGraph</SelectItem>
-                  <SelectItem value="ai_sdk">AI SDK</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                className="flex-1"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating Candidates...
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="mr-2 h-4 w-4" />
-                    Generate Candidates
-                  </>
-                )}
-              </Button>
-            </div>
-          </Card>
-          {/* Workflow Progress */}
-          {workflowState.iterationCount > 0 && (
-            <WorkflowProgress
-              currentPhase={workflowState.currentPhase}
-              iterationCount={workflowState.iterationCount}
-              maxIterations={5}
-              isComplete={workflowState.isComplete}
-            />
+
+        <Card
+          className={cn(
+            "p-4 border-2 border-dashed rounded-lg min-h-[200px] relative",
+            "hover:border-blue-500 transition-colors duration-200",
+            isParsing && "opacity-50"
           )}
-          {/* Display refined criteria via the CriteriaRefinement component */}
-          <CriteriaRefinement refinedCriteria={workflowState.refinedCriteria} />
-          {/* Candidates Grid */}
-          {candidates.length > 0 && (
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold">Generated Candidates</h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {candidates.map((candidate, index) => (
-                  <div key={candidate.id || `candidate-${index}`} className="bg-card border rounded-lg p-4 space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-medium text-lg">{candidate.name}</h3>
-                        <p className="text-sm text-muted-foreground">{candidate.background}</p>
-                      </div>
-                      {!votedCandidates.has(candidate.id) && (
-                        <div className="flex space-x-2">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleVote(candidate.id, true)}
-                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                          >
-                            <HandThumbUpIcon className="h-5 w-5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleVote(candidate.id, false)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <HandThumbDownIcon className="h-5 w-5" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <h4 className="font-medium mb-1">Skills</h4>
-                        <ul className="list-disc list-inside text-muted-foreground">
-                          {candidate.skills.map((skill: string, index: number) => (
-                            <li key={`${candidate.id}-skill-${index}`}>{skill}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <p><span className="font-medium">Experience:</span> {candidate.yearsOfExperience} years</p>
-                        <p><span className="font-medium">Match Score:</span> {candidate.matchScore}%</p>
-                      </div>
-                    </div>
-                    <div className="text-sm">
-                      <h4 className="font-medium mb-1">Achievements</h4>
-                      <ul className="list-disc list-inside text-muted-foreground">
-                        {candidate.achievements.map((achievement: string, index: number) => (
-                          <li key={`${candidate.id}-achievement-${index}`}>{achievement}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-medium">Match Reasoning:</span> {candidate.reasonForMatch}
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+          onPaste={handlePaste}
+        >
+          {jobText ? (
+            <ParsedJobDescription text={jobText} />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+              {isParsing ? (
+                <div className="flex items-center">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Parsing...
+                </div>
+              ) : (
+                <p>
+                  Drop a file here, paste text, or click Upload to add a job description
+                </p>
+              )}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {workflowState.currentPhase !== 'INITIAL' && (
+        <WorkflowProgress
+          currentPhase={workflowState.currentPhase}
+          iterationCount={workflowState.iterationCount}
+          isComplete={workflowState.isComplete}
+          maxIterations={5}
+        />
+      )}
+
+      {workflowState.refinedCriteria && (
+        <CriteriaRefinement refinedCriteria={workflowState.refinedCriteria} />
+      )}
+
+      {candidates.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Generated Candidates</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {candidates.map((candidate) => (
+              <Card key={candidate.id} className="p-4 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-lg font-medium">{candidate.name}</h3>
+                    <p className="text-sm text-gray-500">
+                      {candidate.yearsOfExperience} years of experience
                     </p>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleVote(candidate.id)}
+                      className={cn(
+                        votedCandidates.has(candidate.id)
+                          ? "text-green-600"
+                          : "text-gray-400"
+                      )}
+                    >
+                      {votedCandidates.has(candidate.id) ? (
+                        <HandThumbUpIcon className="h-5 w-5" />
+                      ) : (
+                        <HandThumbDownIcon className="h-5 w-5" />
+                      )}
+                    </Button>
+                    <span className="text-sm font-medium">
+                      {candidate.matchScore}% match
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm">{candidate.background}</p>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium">Skills</h4>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {candidate.skills.map((skill, index) => (
+                        <span
+                          key={index}
+                          className="px-2 py-1 text-xs bg-gray-100 rounded-full"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-medium">Achievements</h4>
+                    <ul className="list-disc list-inside text-sm">
+                      {candidate.achievements.map((achievement, index) => (
+                        <li key={index}>{achievement}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {candidate.scoringDetails && (
+                    <div>
+                      <h4 className="text-sm font-medium">Score Breakdown</h4>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>Skills: {candidate.scoringDetails.skillsScore}%</div>
+                        <div>
+                          Experience: {candidate.scoringDetails.experienceScore}%
+                        </div>
+                        <div>
+                          Achievements: {candidate.scoringDetails.achievementsScore}%
+                        </div>
+                        <div>
+                          Cultural Fit: {candidate.scoringDetails.culturalScore}%
+                        </div>
+                        {candidate.scoringDetails.leadershipScore && (
+                          <div>
+                            Leadership: {candidate.scoringDetails.leadershipScore}%
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {candidate.scoringDetails.scoreBreakdown}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -1,12 +1,16 @@
 import { AI_MODEL } from './config';
 import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
-import { candidateEvaluationSchema, evaluationCategories, messageTemplates, systemPrompts } from './schema';
+import { 
+  candidateEvaluationSchema,
+  systemPrompts
+} from './validation';
+import { evaluationCategories, messageTemplates } from './templates';
 import type { 
   CandidateProfile, 
   JobDescription, 
   CandidateEvaluation
-} from './types';
+} from './types/base';
 
 export async function evaluateCandidate(
   candidate: CandidateProfile,

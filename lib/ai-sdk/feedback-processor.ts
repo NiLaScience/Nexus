@@ -4,16 +4,16 @@ import { AI_MODEL } from './config';
 import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import {
-  systemPrompts,
   feedbackAnalysisSchema,
   criteriaRefinementSchema,
-  messageTemplates
-} from './schema';
+  systemPrompts
+} from './validation';
+import { messageTemplates } from './templates';
 import type {
   CandidateFeedback,
   WorkflowState,
   CriteriaRefinement
-} from './types';
+} from './types/base';
 import { z } from 'zod';
 
 type FeedbackAnalysis = z.infer<typeof feedbackAnalysisSchema>;
@@ -35,7 +35,9 @@ export async function analyzeFeedbackPatterns(
 
     const result = await generateObject({
       model: openai(AI_MODEL),
-      schema: feedbackAnalysisSchema,
+      prompt: messageTemplates.feedbackAnalysis.userPrompt(formattedFeedback),
+      mode: 'json',
+      output: 'no-schema',
       messages: [
         systemPrompts.feedbackAnalysis,
         {
@@ -45,13 +47,10 @@ export async function analyzeFeedbackPatterns(
       ]
     });
 
-    if (!result.object) {
-      console.error('Missing result.object in feedback analysis');
-      throw new Error('Failed to analyze feedback patterns');
-    }
-
-    console.log('Feedback analysis result:', result.object);
-    return result.object;
+    // Parse and validate the response
+    const validatedResponse = feedbackAnalysisSchema.parse(result);
+    console.log('Feedback analysis result:', validatedResponse);
+    return validatedResponse;
 
   } catch (error) {
     console.error('Error analyzing feedback patterns:', error);
@@ -73,7 +72,9 @@ export async function generateCriteriaRefinements(
 
     const result = await generateObject({
       model: openai(AI_MODEL),
-      schema: criteriaRefinementSchema,
+      prompt: messageTemplates.criteriaRefinement.userPrompt(currentState, feedbackAnalysis),
+      mode: 'json',
+      output: 'no-schema',
       messages: [
         {
           role: 'system',
@@ -86,13 +87,10 @@ export async function generateCriteriaRefinements(
       ]
     });
 
-    if (!result.object) {
-      console.error('Missing result.object in criteria refinement');
-      throw new Error('Failed to generate criteria refinements');
-    }
-
-    console.log('Generated criteria refinements:', result.object);
-    return result.object;
+    // Parse and validate the response
+    const validatedResponse = criteriaRefinementSchema.parse(result);
+    console.log('Generated criteria refinements:', validatedResponse);
+    return validatedResponse;
 
   } catch (error) {
     console.error('Error generating criteria refinements:', error);
@@ -136,9 +134,8 @@ export function shouldRefineBasedOnFeedback(
 ): boolean {
   if (!feedback.length) return false;
 
-  // Calculate the ratio of positive to negative feedback
+  // Calculate the ratio of positive feedback
   const positiveCount = feedback.filter(f => f.isPositive).length;
-  const negativeCount = feedback.length - positiveCount;
   const positiveRatio = positiveCount / feedback.length;
 
   // Check if we have enough feedback to make a decision
@@ -159,4 +156,67 @@ export function shouldRefineBasedOnFeedback(
     analysis.recommendations.experienceAdjustments.length > 0;
 
   return hasSignificantPatterns || hasActionableRecommendations;
+}
+
+// Process feedback and generate refinements
+export async function processFeedback(
+  feedback: CandidateFeedback[],
+  currentState: WorkflowState
+): Promise<{
+  analysis: z.infer<typeof feedbackAnalysisSchema>;
+  refinements: CriteriaRefinement;
+}> {
+  try {
+    // Generate feedback analysis
+    const feedbackPrompt = messageTemplates.feedbackAnalysis.userPrompt(feedback);
+    
+    const analysisResult = await generateObject({
+      model: openai(AI_MODEL),
+      prompt: feedbackPrompt,
+      mode: 'json',
+      output: 'no-schema',
+      messages: [
+        systemPrompts.feedbackAnalysis,
+        {
+          role: 'user',
+          content: feedbackPrompt
+        }
+      ]
+    });
+
+    const validatedAnalysis = feedbackAnalysisSchema.parse(analysisResult);
+
+    // Generate criteria refinements based on analysis
+    const refinementPrompt = messageTemplates.criteriaRefinement.userPrompt(
+      currentState,
+      validatedAnalysis
+    );
+
+    const refinementsResult = await generateObject({
+      model: openai(AI_MODEL),
+      prompt: refinementPrompt,
+      mode: 'json',
+      output: 'no-schema',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert AI recruiter refining job criteria based on candidate feedback patterns.'
+        },
+        {
+          role: 'user',
+          content: refinementPrompt
+        }
+      ]
+    });
+
+    const validatedRefinements = criteriaRefinementSchema.parse(refinementsResult);
+
+    return {
+      analysis: validatedAnalysis,
+      refinements: validatedRefinements
+    };
+  } catch (error) {
+    console.error('Error processing feedback:', error);
+    throw error;
+  }
 }

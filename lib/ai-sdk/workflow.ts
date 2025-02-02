@@ -1,15 +1,15 @@
 import { AI_MODEL } from './config';
 import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
-import { systemPrompts, criteriaRefinementSchema } from './schema';
+import { 
+  criteriaRefinementSchema,
+  systemPrompts
+} from './validation';
 import type { 
   WorkflowState, 
   CriteriaRefinement,
-  ScoringCriteria,
-  CandidateFeedback,
-  SystemMessage,
-  UserMessage
-} from './types';
+  CandidateFeedback
+} from './types/base';
 
 const MAX_ITERATIONS = 5;
 
@@ -65,19 +65,14 @@ Instructions:
 3. Refine experience levels based on feedback
 4. Update cultural attributes based on fit
 5. Document each change and why it was made
-6. Build upon previous refinements if they were successful
-
-Return a structured refinement that clearly shows:
-- Which skills became more/less important
-- How experience requirements changed
-- What cultural attributes matter most
-- Clear reasoning for each adjustment`;
+6. Build upon previous refinements if they were successful`;
 
   try {
     const result = await generateObject({
       model: openai(AI_MODEL),
-      schema: criteriaRefinementSchema,
       prompt,
+      mode: 'json',
+      output: 'no-schema',
       messages: [
         {
           role: 'system',
@@ -95,23 +90,9 @@ Return a structured refinement that clearly shows:
       console.warn('AI SDK Warnings:', result.warnings);
     }
 
-    const refinement = criteriaRefinementSchema.parse(result.response);
-    return {
-      updatedSkills: {
-        required: refinement.refinedCriteria.requiredSkills.map(s => s.skill),
-        preferred: refinement.refinedCriteria.preferredSkills.map(s => s.skill),
-        removed: []
-      },
-      updatedExperience: {
-        minimum: refinement.refinedCriteria.experienceLevel.minYears,
-        preferred: refinement.refinedCriteria.experienceLevel.minYears + 2,
-        maximum: refinement.refinedCriteria.experienceLevel.maxYears
-      },
-      updatedCulturalCriteria: refinement.refinedCriteria.culturalAttributes.map(a => a.attribute),
-      updatedLeadershipCriteria: [],
-      reasonForChanges: refinement.explanation,
-      confidence: 0.85
-    };
+    // Parse and validate the response
+    const validatedResponse = criteriaRefinementSchema.parse(result);
+    return validatedResponse;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     throw new Error('Failed to refine criteria: ' + errorMessage);
@@ -141,7 +122,7 @@ export function updateWorkflowState(
   };
 }
 
-export function calculateConvergence(state: WorkflowState): number {
+export function calculateConvergence(_state: WorkflowState): number {
   // TODO: Implement convergence calculation based on:
   // 1. Changes in criteria refinements over iterations
   // 2. Stability of match scores

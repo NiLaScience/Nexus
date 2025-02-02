@@ -1,17 +1,19 @@
 import { NextRequest } from 'next/server';
 import { candidateMatchingWorkflow } from '@/lib/workflows/candidate-matching';
 import { z } from 'zod';
-import { createClient } from '@supabase/supabase-js';
 import { getJobDescription } from '@/lib/ai-sdk/database';
 import { runCandidateWorkflow } from '@/lib/ai-sdk/candidate-workflow';
-import { candidateMatchingRequestSchema } from '@/lib/ai-sdk/schema';
-import type { CandidateFeedback } from '@/lib/ai-sdk/types';
+import { candidateMatchingRequestSchema, jobDescriptionSchema } from '@/lib/ai-sdk/validation';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-function formatJobDescription(jobDesc: any): string {
+type JobDescription = z.infer<typeof jobDescriptionSchema>;
+
+interface JobDescriptionRecord {
+  id: string;
+  parsed_content: JobDescription;
+}
+
+function formatJobDescription(jobDesc: JobDescriptionRecord): string {
   console.log('Raw job description:', JSON.stringify(jobDesc, null, 2));
 
   const parsed = jobDesc.parsed_content;
@@ -22,32 +24,25 @@ function formatJobDescription(jobDesc: any): string {
   return `
 Title: ${parsed.title}
 
-Company: ${parsed.company.name}
-Industry: ${parsed.company.industry}
-${parsed.company.description ? `Company Description: ${parsed.company.description}` : ''}
+Description: ${parsed.description}
 
-Location: ${parsed.location}
-Employment Type: ${parsed.employmentType}
-
-Required Skills:
-${parsed.requiredSkills.map((skill: string) => `- ${skill}`).join('\n')}
-
-${parsed.preferredSkills.length > 0 ? `Preferred Skills:
-${parsed.preferredSkills.map((skill: string) => `- ${skill}`).join('\n')}` : ''}
+Requirements:
+${parsed.requirements.map((req: string) => `- ${req}`).join('\n')}
 
 Responsibilities:
 ${parsed.responsibilities.map((resp: string) => `- ${resp}`).join('\n')}
 
-Qualifications:
-${parsed.qualifications.map((qual: string) => `- ${qual}`).join('\n')}
-
-Years of Experience Required: ${parsed.yearsOfExperience}
-
-Career Level: ${parsed.careerLevel.level}
-Management Responsibilities: ${parsed.careerLevel.managementResponsibilities ? 'Yes' : 'No'}
-Direct Reports: ${parsed.careerLevel.directReports}
-Scope: ${parsed.careerLevel.scope}
+Location: ${parsed.location || 'Not specified'}
+Employment Type: ${parsed.employmentType}
+Experience Level: ${parsed.experienceLevel}
+Remote: ${parsed.remote ? 'Yes' : 'No'}
 `.trim();
+}
+
+interface LangGraphResponse {
+  finalCandidates: any[];
+  iterationCount: number;
+  shouldTerminate: boolean;
 }
 
 export async function POST(req: NextRequest) {
@@ -65,7 +60,7 @@ export async function POST(req: NextRequest) {
           isGoodFit: f.isPositive,
           feedback: f.reason
         })) || []
-      });
+      }) as LangGraphResponse;
 
       return Response.json({
         success: true,
@@ -99,11 +94,11 @@ export async function POST(req: NextRequest) {
         }));
 
         // Format the job description into a string
-        const jobDescriptionText = formatJobDescription(jobDescription);
+        const jobDescriptionText = formatJobDescription(jobDescription as JobDescriptionRecord);
         console.log('Formatted job description:', jobDescriptionText);
 
         // Run the workflow
-        const result = await runCandidateWorkflow(
+        const { candidates, workflowState } = await runCandidateWorkflow(
           {
             jobDescription: jobDescriptionText,
             selectionCriteria: jobDescription.requirements || [],
@@ -114,19 +109,19 @@ export async function POST(req: NextRequest) {
         );
 
         console.log('Workflow completed successfully:', {
-          candidatesCount: result.candidates.length,
-          iterationCount: result.workflowState.iterationcount,
-          isComplete: result.workflowState.shouldterminate
+          candidatesCount: candidates.length,
+          iterationCount: workflowState.iterationCount,
+          isComplete: workflowState.shouldTerminate
         });
 
         return Response.json({
           success: true,
           data: {
-            finalCandidates: result.finalCandidates,
-            iterationCount: result.iterationCount,
-            isComplete: result.shouldTerminate,
-            needsFeedback: !result.shouldTerminate,
-            refinedCriteria: result.refinedCriteria
+            finalCandidates: candidates,
+            iterationCount: workflowState.iterationCount,
+            isComplete: workflowState.shouldTerminate,
+            needsFeedback: !workflowState.shouldTerminate,
+            refinedCriteria: workflowState.uiCriteria
           }
         });
 
@@ -140,9 +135,14 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     console.error('Error in candidate matching:', error);
-    return Response.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to match candidates'
-    }, { status: 500 });
+
+    if (error instanceof z.ZodError) {
+      return Response.json({ error: 'Invalid request format' }, { status: 400 });
+    }
+
+    return Response.json(
+      { error: 'Failed to process candidate matching request' },
+      { status: 500 }
+    );
   }
 } 

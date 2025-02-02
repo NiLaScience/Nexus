@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import type { 
   WorkflowState, 
+  DbWorkflowState,
   CriteriaRefinement,
   CandidateFeedback
-} from './types';
+} from './types/base';
 import { storeGeneratedCandidates as dbStoreGeneratedCandidates } from './database';
+import { mapDbToWorkflowState, mapWorkflowStateToDb } from './mapping';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -31,51 +33,49 @@ export async function loadWorkflowState(
 
     if (error && error.code !== 'PGRST116') {
       console.error('Error loading workflow state:', error);
-      throw new Error(`Failed to load workflow state: ${error.message}`);
+      throw error;
     }
 
     if (existingState) {
-      console.log('Found existing workflow state:', existingState);
-      return existingState as WorkflowState;
+      return mapDbToWorkflowState(existingState as DbWorkflowState);
     }
 
-    // Initialize new state if none exists
-    const newState: WorkflowState = {
-      jobdescriptionid: jobDescriptionId,
-      iterationcount: 0,
-      shouldterminate: false,
-      currentphase: 'INITIAL',
-      scoringcriteria: {
-        skillsweight: 0.3,
-        experienceweight: 0.2,
-        achievementsweight: 0.2,
-        culturalweight: 0.2,
-        leadershipweight: 0.1,
-        requiredskills: [],
-        preferredskills: [],
-        experiencelevels: {
+    // Initialize new workflow state
+    const initialState: WorkflowState = {
+      jobDescriptionId,
+      iterationCount: 0,
+      shouldTerminate: false,
+      currentPhase: 'INITIAL',
+      scoringCriteria: {
+        skillsWeight: 0.4,
+        experienceWeight: 0.3,
+        achievementsWeight: 0.2,
+        culturalWeight: 0.1,
+        leadershipWeight: 0,
+        requiredSkills: [],
+        preferredSkills: [],
+        experienceLevels: {
           minimum: 0,
-          preferred: 0,
-          maximum: 0,
-          yearsweight: 0.5
+          preferred: 3,
+          maximum: 10,
+          yearsWeight: 0.6
         },
-        culturalcriteria: [],
-        leadershipcriteria: []
+        culturalCriteria: [],
+        leadershipCriteria: []
       }
     };
 
+    // Store initial state
     const { error: insertError } = await supabase
       .from('workflow_states')
-      .insert(newState);
+      .insert(mapWorkflowStateToDb(initialState));
 
     if (insertError) {
-      console.error('Error creating new workflow state:', insertError);
-      throw new Error(`Failed to create workflow state: ${insertError.message}`);
+      console.error('Error inserting initial workflow state:', insertError);
+      throw insertError;
     }
 
-    console.log('Created new workflow state:', newState);
-    return newState;
-
+    return initialState;
   } catch (error) {
     console.error('Error in loadWorkflowState:', error);
     throw error;
@@ -90,26 +90,23 @@ export async function updateWorkflowState(
   updates: Partial<WorkflowState>
 ): Promise<WorkflowState> {
   try {
-    console.log('Updating workflow state:', { jobDescriptionId, updates });
+    const currentState = await loadWorkflowState(jobDescriptionId);
+    const updatedState: WorkflowState = {
+      ...currentState,
+      ...updates
+    };
 
-    const { data: updatedState, error } = await supabase
+    const { error } = await supabase
       .from('workflow_states')
-      .update({
-        ...updates,
-        updatedat: new Date().toISOString()
-      })
-      .eq('jobdescriptionid', jobDescriptionId)
-      .select()
-      .single();
+      .update(mapWorkflowStateToDb(updatedState))
+      .eq('jobdescriptionid', jobDescriptionId);
 
     if (error) {
       console.error('Error updating workflow state:', error);
-      throw new Error(`Failed to update workflow state: ${error.message}`);
+      throw error;
     }
 
-    console.log('Updated workflow state:', updatedState);
-    return updatedState as WorkflowState;
-
+    return updatedState;
   } catch (error) {
     console.error('Error in updateWorkflowState:', error);
     throw error;
@@ -117,52 +114,27 @@ export async function updateWorkflowState(
 }
 
 /**
- * Stores feedback for a workflow.
+ * Stores feedback in the database.
  */
 export async function storeFeedback(
   jobDescriptionId: string,
-  feedback: Array<{
-    candidateId: string;
-    isPositive: boolean;
-    reason?: string;
-  }>
+  feedback: CandidateFeedback[]
 ): Promise<void> {
   try {
-    console.log('Storing feedback:', { jobDescriptionId, feedback });
-
-    // First, get the job_description_id for each candidate
-    const { data: candidates, error: candidateError } = await supabase
-      .from('candidate_profiles')
-      .select('id, job_description_id')
-      .in('id', feedback.map(f => f.candidateId));
-
-    if (candidateError) {
-      console.error('Error fetching candidates:', candidateError);
-      throw new Error(`Failed to fetch candidates: ${candidateError.message}`);
-    }
-
-    // Map candidates to their job_description_id
-    const candidateJobMap = new Map(
-      candidates.map(c => [c.id, c.job_description_id])
-    );
-
     const { error } = await supabase
       .from('candidate_feedback')
       .insert(feedback.map(f => ({
-        candidate_id: f.candidateId,
-        job_description_id: candidateJobMap.get(f.candidateId),
-        is_good_fit: f.isPositive,
-        feedback: f.reason,
-        created_at: new Date().toISOString()
+        jobdescriptionid: jobDescriptionId,
+        candidateid: f.candidateId,
+        ispositive: f.isPositive,
+        reason: f.reason,
+        createdat: new Date().toISOString()
       })));
 
     if (error) {
       console.error('Error storing feedback:', error);
-      throw new Error(`Failed to store feedback: ${error.message}`);
+      throw error;
     }
-
-    console.log('Successfully stored feedback');
-
   } catch (error) {
     console.error('Error in storeFeedback:', error);
     throw error;
@@ -170,39 +142,28 @@ export async function storeFeedback(
 }
 
 /**
- * Loads all feedback for a workflow.
+ * Loads feedback from the database.
  */
 export async function loadFeedback(
   jobDescriptionId: string
-): Promise<Array<{
-  candidateId: string;
-  isPositive: boolean;
-  reason?: string;
-}>> {
+): Promise<CandidateFeedback[]> {
   try {
-    console.log('Loading feedback for job:', jobDescriptionId);
-
-    const { data: feedback, error } = await supabase
+    const { data, error } = await supabase
       .from('candidate_feedback')
-      .select('*, candidate_profiles!inner(job_description_id)')
-      .eq('candidate_profiles.job_description_id', jobDescriptionId)
-      .order('created_at', { ascending: true });
+      .select('*')
+      .eq('jobdescriptionid', jobDescriptionId)
+      .order('createdat', { ascending: true });
 
     if (error) {
       console.error('Error loading feedback:', error);
-      throw new Error(`Failed to load feedback: ${error.message}`);
+      throw error;
     }
 
-    // Map the feedback to match our expected format
-    const mappedFeedback = feedback.map(f => ({
-      candidateId: f.candidate_id,
-      isPositive: f.is_good_fit,
-      reason: f.feedback
+    return data.map(f => ({
+      candidateId: f.candidateid,
+      isPositive: f.ispositive,
+      reason: f.reason
     }));
-
-    console.log('Loaded feedback:', mappedFeedback);
-    return mappedFeedback;
-
   } catch (error) {
     console.error('Error in loadFeedback:', error);
     throw error;
@@ -210,7 +171,7 @@ export async function loadFeedback(
 }
 
 /**
- * Stores criteria refinements for a workflow iteration.
+ * Stores criteria refinement in the database.
  */
 export async function storeCriteriaRefinement(
   jobDescriptionId: string,
@@ -218,8 +179,6 @@ export async function storeCriteriaRefinement(
   iterationNumber: number
 ): Promise<void> {
   try {
-    console.log('Storing criteria refinement:', { jobDescriptionId, refinement, iterationNumber });
-
     const { error } = await supabase
       .from('workflow_refinements')
       .insert({
@@ -231,11 +190,8 @@ export async function storeCriteriaRefinement(
 
     if (error) {
       console.error('Error storing criteria refinement:', error);
-      throw new Error(`Failed to store criteria refinement: ${error.message}`);
+      throw error;
     }
-
-    console.log('Successfully stored criteria refinement');
-
   } catch (error) {
     console.error('Error in storeCriteriaRefinement:', error);
     throw error;
@@ -243,15 +199,13 @@ export async function storeCriteriaRefinement(
 }
 
 /**
- * Loads the latest criteria refinement for a workflow.
+ * Loads the latest refinement from the database.
  */
 export async function loadLatestRefinement(
   jobDescriptionId: string
 ): Promise<CriteriaRefinement | null> {
   try {
-    console.log('Loading latest refinement for job:', jobDescriptionId);
-
-    const { data: refinement, error } = await supabase
+    const { data, error } = await supabase
       .from('workflow_refinements')
       .select('*')
       .eq('jobdescriptionid', jobDescriptionId)
@@ -259,14 +213,15 @@ export async function loadLatestRefinement(
       .limit(1)
       .single();
 
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error loading refinement:', error);
-      throw new Error(`Failed to load refinement: ${error.message}`);
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      console.error('Error loading latest refinement:', error);
+      throw error;
     }
 
-    console.log('Loaded refinement:', refinement);
-    return refinement ? refinement.refinement : null;
-
+    return data.refinement;
   } catch (error) {
     console.error('Error in loadLatestRefinement:', error);
     throw error;
