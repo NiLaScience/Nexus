@@ -44,9 +44,9 @@ export async function storeFeedback(
   feedback: CandidateFeedback[]
 ) {
   const feedbackToInsert = feedback.map(f => ({
-    jobDescriptionId,
-    candidateId: f.candidateId,
-    isGoodFit: f.isPositive,
+    job_description_id: jobDescriptionId,
+    candidate_id: f.candidateId,
+    is_good_fit: f.isPositive,
     feedback: f.reason
   }));
 
@@ -67,11 +67,11 @@ export async function storeIterationState(
   const { error } = await supabase
     .from('matching_iterations')
     .insert({
-      jobDescriptionId,
-      iterationNumber: iterationCount,
-      refinedCriteria,
-      feedbackSummary: feedbackAnalysis,
-      isFinal
+      job_description_id: jobDescriptionId,
+      iteration_number: iterationCount,
+      refined_criteria: refinedCriteria,
+      feedback_summary: feedbackAnalysis,
+      is_final: isFinal
     });
 
   if (error) throw new Error(`Failed to store iteration state: ${error.message}`);
@@ -109,8 +109,8 @@ export async function getWorkflowState(jobDescriptionId: string) {
   const { data, error } = await supabase
     .from('matching_iterations')
     .select('*')
-    .eq('jobDescriptionId', jobDescriptionId)
-    .order('iterationNumber', { ascending: false })
+    .eq('job_description_id', jobDescriptionId)
+    .order('iteration_number', { ascending: false })
     .limit(1)
     .single();
 

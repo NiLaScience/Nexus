@@ -99,7 +99,7 @@ export async function updateWorkflowState(
     const { error } = await supabase
       .from('workflow_states')
       .update(mapWorkflowStateToDb(updatedState))
-      .eq('jobdescriptionid', jobDescriptionId);
+      .eq('job_description_id', jobDescriptionId);
 
     if (error) {
       console.error('Error updating workflow state:', error);
@@ -124,11 +124,11 @@ export async function storeFeedback(
     const { error } = await supabase
       .from('candidate_feedback')
       .insert(feedback.map(f => ({
-        jobdescriptionid: jobDescriptionId,
-        candidateid: f.candidateId,
-        ispositive: f.isPositive,
-        reason: f.reason,
-        createdat: new Date().toISOString()
+        job_description_id: jobDescriptionId,
+        candidate_id: f.candidateId,
+        is_good_fit: f.isPositive,
+        feedback: f.reason,
+        created_at: new Date().toISOString()
       })));
 
     if (error) {
@@ -145,28 +145,40 @@ export async function storeFeedback(
  * Loads feedback from the database.
  */
 export async function loadFeedback(
-  jobDescriptionId: string
+  jobDescriptionId: string,
+  iterationCount: number = 0
 ): Promise<CandidateFeedback[]> {
+  // On first iteration, return empty feedback array
+  if (iterationCount === 0) {
+    return [];
+  }
+
   try {
     const { data, error } = await supabase
       .from('candidate_feedback')
       .select('*')
-      .eq('jobdescriptionid', jobDescriptionId)
-      .order('createdat', { ascending: true });
+      .eq('job_description_id', jobDescriptionId)
+      .order('created_at', { ascending: true });
 
     if (error) {
       console.error('Error loading feedback:', error);
       throw error;
     }
 
+    // If no feedback exists yet, return empty array
+    if (!data || data.length === 0) {
+      return [];
+    }
+
     return data.map(f => ({
-      candidateId: f.candidateid,
-      isPositive: f.ispositive,
-      reason: f.reason
+      candidateId: f.candidate_id,
+      isPositive: f.is_good_fit,
+      reason: f.feedback
     }));
   } catch (error) {
     console.error('Error in loadFeedback:', error);
-    throw error;
+    // On error, return empty array instead of throwing
+    return [];
   }
 }
 
