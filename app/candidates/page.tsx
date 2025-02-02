@@ -1,3 +1,4 @@
+// File: /Users/gauntlet/Documents/projects/nexus/app/candidates/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -30,21 +31,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-function IterationProgress({ current, max }: { current: number; max: number }) {
-  // Calculate progress based on 0-based iteration count
-  const progress = ((current + 1) / max) * 100;
-  
-  return (
-    <div className="w-full space-y-2">
-      <div className="flex justify-between text-sm text-muted-foreground">
-        <span>Iteration {current + 1} of {max}</span>
-        <span>{Math.round(progress)}%</span>
-      </div>
-      <Progress value={progress} className="h-2" />
-    </div>
-  );
-}
-
 export default function CandidatesPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -71,15 +57,13 @@ export default function CandidatesPage() {
   const [workflowType, setWorkflowType] = useState<'langgraph' | 'ai_sdk'>('langgraph');
   const [feedbackHistory, setFeedbackHistory] = useState<CandidateFeedback[]>([]);
 
-  // Poll for results if we have a jobId
+  // Poll for parsing results if jobId is set.
   useEffect(() => {
     if (!jobId) return;
-
     const pollInterval = setInterval(async () => {
       try {
         const response = await fetch(`/api/candidates/parse/${jobId}`);
         const data = await response.json();
-
         if (response.ok) {
           if (data.parsed) {
             setParsedData(data.parsed);
@@ -92,16 +76,14 @@ export default function CandidatesPage() {
         console.error('Error polling for results:', error);
       }
     }, 2000);
-
     return () => clearInterval(pollInterval);
   }, [jobId]);
 
-  // Poll for parsing status
+  // Poll for parsing status.
   const pollParseStatus = async (id: string) => {
     try {
       const response = await fetch(`/api/candidates/parse/${id}`);
       const data = await response.json();
-
       if (response.ok) {
         if (data.status === 'completed' && data.parsed) {
           if (pollIntervalRef.current) {
@@ -127,7 +109,7 @@ export default function CandidatesPage() {
     }
   };
 
-  // Cleanup polling on unmount
+  // Cleanup polling on unmount.
   useEffect(() => {
     return () => {
       if (pollIntervalRef.current) {
@@ -150,27 +132,20 @@ export default function CandidatesPage() {
       setError('Please select a file first');
       return;
     }
-
     setLoading(true);
     setError(null);
     setParsedData(null);
-
     try {
       setIsParsing(true);
       const formData = new FormData();
       formData.append('file', file);
-
       const response = await fetch('/api/candidates/parse', {
         method: 'POST',
         body: formData,
       });
-
       const data = await response.json();
-
       if (response.ok) {
         setJobId(data.id);
-        
-        // Start polling for parse status
         pollIntervalRef.current = setInterval(() => pollParseStatus(data.id), 2000);
       } else {
         setError(data.error || 'Failed to parse job description');
@@ -191,7 +166,6 @@ export default function CandidatesPage() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile && droppedFile.type === 'application/pdf') {
       setFile(droppedFile);
@@ -204,7 +178,6 @@ export default function CandidatesPage() {
   const handleUrlSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!url) return;
-
     try {
       setIsParsing(true);
       const response = await fetch('/api/candidates/parse', {
@@ -214,15 +187,10 @@ export default function CandidatesPage() {
         },
         body: JSON.stringify({ url }),
       });
-
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to load job description');
-
       setJobId(result.id);
-      
-      // Start polling for parse status
       pollIntervalRef.current = setInterval(() => pollParseStatus(result.id), 2000);
-
       toast.success("Job description loaded successfully");
     } catch (error) {
       setIsParsing(false);
@@ -235,7 +203,6 @@ export default function CandidatesPage() {
       toast.error("No job description ID found");
       return;
     }
-
     setIsGenerating(true);
     try {
       const response = await fetch('/api/candidate-matching', {
@@ -248,15 +215,13 @@ export default function CandidatesPage() {
           workflowType,
           feedback: [...votedCandidates].map(candidateId => ({
             candidateId,
-            isPositive: true, // We'll get this from the actual vote
+            isPositive: true, // This will be replaced by actual vote value.
             reason: 'Manual selection'
           }))
         }),
       });
-
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to generate candidates');
-
       console.log('Generated candidates:', result);
       if (result.data) {
         setCandidates(result.data.finalCandidates);
@@ -281,10 +246,8 @@ export default function CandidatesPage() {
       toast.error('Invalid candidate ID or job ID');
       return;
     }
-
     try {
       console.log('Submitting vote:', { candidateId, isGoodFit, jobId, workflowType });
-      
       const response = await fetch('/api/candidates/feedback', {
         method: 'POST',
         headers: {
@@ -296,39 +259,27 @@ export default function CandidatesPage() {
           isGoodFit
         }),
       });
-
       const result = await response.json();
       console.log('Feedback response:', result);
-
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Failed to submit feedback');
       }
-
-      // Update feedback history
+      // Update local feedback history.
       setFeedbackHistory(prev => [...prev, {
         candidateId,
         isPositive: isGoodFit,
         reason: 'Manual selection'
       }]);
-
-      // Mark candidate as voted
-      setVotedCandidates(prev => {
-        const newSet = new Set([...prev, candidateId]);
-        console.log('Updated voted candidates:', [...newSet]);
-        return newSet;
-      });
-      
+      // Mark candidate as voted.
+      setVotedCandidates(prev => new Set([...prev, candidateId]));
       toast.success("Feedback submitted successfully");
-
-      // If we have votes for all candidates, generate new ones
+      // Check if all candidates have been voted on.
       const allVoted = candidates.every(c => {
         const hasVoted = votedCandidates.has(c.id) || c.id === candidateId;
         console.log(`Candidate ${c.id}: voted=${hasVoted}`);
         return hasVoted;
       });
-
       console.log('All candidates voted:', allVoted);
-
       if (allVoted && jobId) {
         if (workflowState.isComplete) {
           toast.info("Maximum iterations reached or no more feedback needed. Thank you for your feedback!");
@@ -337,7 +288,6 @@ export default function CandidatesPage() {
         toast.info("Generating new candidates based on feedback...");
         await handleGenerate();
       }
-
     } catch (error) {
       console.error('Error submitting vote:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to submit feedback');
@@ -349,7 +299,6 @@ export default function CandidatesPage() {
       <Card className="p-6">
         <div className="space-y-4">
           <h1 className="text-2xl font-bold">Parse Job Description</h1>
-          
           <div 
             className={cn(
               "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
@@ -367,7 +316,6 @@ export default function CandidatesPage() {
               accept=".pdf"
               className="hidden"
             />
-            
             <div className="flex flex-col items-center gap-2">
               <Upload className="h-8 w-8 text-muted-foreground" />
               {file ? (
@@ -380,7 +328,6 @@ export default function CandidatesPage() {
               )}
             </div>
           </div>
-
           <div className="flex justify-end">
             <Button 
               onClick={handleUpload}
@@ -391,11 +338,7 @@ export default function CandidatesPage() {
               {loading ? 'Uploading...' : isParsing ? 'Parsing...' : 'Upload & Parse'}
             </Button>
           </div>
-
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
-
+          {error && <p className="text-sm text-destructive">{error}</p>}
           {isParsing && !error && (
             <div className="flex items-center justify-center text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -404,11 +347,9 @@ export default function CandidatesPage() {
           )}
         </div>
       </Card>
-
       {parsedData && (
         <div className="space-y-4">
           <ParsedJobDescription parsedData={parsedData} />
-          
           <Card className="p-6">
             <div className="flex items-center gap-4">
               <Select
@@ -423,7 +364,6 @@ export default function CandidatesPage() {
                   <SelectItem value="ai_sdk">AI SDK</SelectItem>
                 </SelectContent>
               </Select>
-              
               <Button
                 onClick={handleGenerate}
                 disabled={isGenerating}
@@ -443,7 +383,6 @@ export default function CandidatesPage() {
               </Button>
             </div>
           </Card>
-
           {/* Workflow Progress */}
           {workflowState.iterationCount > 0 && (
             <WorkflowProgress
@@ -453,15 +392,8 @@ export default function CandidatesPage() {
               isComplete={workflowState.isComplete}
             />
           )}
-
-          {/* Feedback Summary and Criteria Refinement */}
-          {feedbackHistory.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FeedbackSummary feedback={feedbackHistory} />
-              <CriteriaRefinement refinedCriteria={workflowState.refinedCriteria} />
-            </div>
-          )}
-
+          {/* Display refined criteria via the CriteriaRefinement component */}
+          <CriteriaRefinement refinedCriteria={workflowState.refinedCriteria} />
           {/* Candidates Grid */}
           {candidates.length > 0 && (
             <div className="space-y-4">
@@ -495,7 +427,6 @@ export default function CandidatesPage() {
                         </div>
                       )}
                     </div>
-
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <h4 className="font-medium mb-1">Skills</h4>
@@ -510,7 +441,6 @@ export default function CandidatesPage() {
                         <p><span className="font-medium">Match Score:</span> {candidate.matchScore}%</p>
                       </div>
                     </div>
-
                     <div className="text-sm">
                       <h4 className="font-medium mb-1">Achievements</h4>
                       <ul className="list-disc list-inside text-muted-foreground">
@@ -519,7 +449,6 @@ export default function CandidatesPage() {
                         ))}
                       </ul>
                     </div>
-
                     <p className="text-sm text-muted-foreground">
                       <span className="font-medium">Match Reasoning:</span> {candidate.reasonForMatch}
                     </p>
@@ -532,4 +461,4 @@ export default function CandidatesPage() {
       )}
     </div>
   );
-} 
+}

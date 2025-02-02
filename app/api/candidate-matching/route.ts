@@ -122,11 +122,11 @@ export async function POST(req: NextRequest) {
         return Response.json({
           success: true,
           data: {
-            finalCandidates: result.candidates,
-            iterationCount: result.workflowState.iterationcount,
-            isComplete: result.workflowState.shouldterminate,
-            needsFeedback: !result.workflowState.shouldterminate,
-            refinedCriteria: result.uiCriteria
+            finalCandidates: result.finalCandidates,
+            iterationCount: result.iterationCount,
+            isComplete: result.shouldTerminate,
+            needsFeedback: !result.shouldTerminate,
+            refinedCriteria: result.refinedCriteria
           }
         });
 

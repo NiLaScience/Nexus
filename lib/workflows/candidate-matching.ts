@@ -1,10 +1,26 @@
-import { StateGraph, Annotation, END } from "@langchain/langgraph";
-import { ChatOpenAI } from "@langchain/openai";
-import { StructuredOutputParser } from "langchain/output_parsers";
-import { RunnableLambda } from "@langchain/core/runnables";
+// File: /Users/gauntlet/Documents/projects/nexus/lib/workflows/candidate-matching.ts
+/**
+ * Candidate Matching Workflow with Generation History and Initial Criteria
+ *
+ * This workflow performs iterative candidate generation, evaluation, ranking,
+ * and storage, incorporating human feedback across iterations. It now ensures
+ * that the job description is provided during candidate generation and that
+ * initial selection criteria (refinedCriteria) are generated if absent.
+ *
+ * Requirements:
+ * - Environment variables NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.
+ * - Supabase tables for job_descriptions, candidate_profiles, and matching_iterations must be configured.
+ * - Optionally integrate a persistent checkpointer for state persistence.
+ *
+ * References:
+ * - LangGraph documentation on state management.
+ */
+
+import { StateGraph, Annotation, END, START } from "@langchain/langgraph";
 import { z } from "zod";
 import { llm } from "@/lib/llm/config";
 import { createClient } from '@supabase/supabase-js';
+import { RunnableLambda } from "@langchain/core/runnables";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -12,16 +28,16 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const MAX_ITERATIONS = 5;
 
-// Define the candidate profile schema
+// Candidate profile schema
 const candidateProfileSchema = z.object({
-  id: z.string().optional().describe("Unique identifier for the candidate"),
-  name: z.string().describe("Full name of the candidate"),
+  id: z.string().optional().describe("Unique candidate ID"),
+  name: z.string().describe("Candidate full name"),
   background: z.string().describe("Professional background and summary"),
-  skills: z.array(z.string()).describe("List of technical skills"),
-  yearsOfExperience: z.number().describe("Total years of relevant experience"),
-  achievements: z.array(z.string()).describe("Notable professional achievements"),
-  matchScore: z.number().describe("Match score against job requirements (0-100)"),
-  reasonForMatch: z.string().describe("Explanation of why this candidate matches"),
+  skills: z.array(z.string()).describe("Technical skills"),
+  yearsOfExperience: z.number().describe("Years of relevant experience"),
+  achievements: z.array(z.string()).describe("Professional achievements"),
+  matchScore: z.number().describe("Match score (0-100)"),
+  reasonForMatch: z.string().describe("Why the candidate matches"),
   scoringDetails: z.object({
     skillsScore: z.number(),
     experienceScore: z.number(),
@@ -32,17 +48,17 @@ const candidateProfileSchema = z.object({
   }).optional().describe("Detailed scoring breakdown")
 });
 
-// Define the criteria refinement schema
+// Criteria refinement schema (for user feedback)
 const criteriaRefinementSchema = z.object({
   refinedCriteria: z.object({
     requiredSkills: z.array(z.object({
       skill: z.string(),
-      importance: z.number().describe("A number between 1 and 5"),
+      importance: z.number().describe("Importance 1-5"),
       reason: z.string()
     })),
     preferredSkills: z.array(z.object({
       skill: z.string(),
-      importance: z.number().describe("A number between 1 and 5"),
+      importance: z.number().describe("Importance 1-5"),
       reason: z.string()
     })),
     experienceLevel: z.object({
@@ -52,7 +68,7 @@ const criteriaRefinementSchema = z.object({
     }),
     culturalAttributes: z.array(z.object({
       attribute: z.string(),
-      importance: z.number().describe("A number between 1 and 5"),
+      importance: z.number().describe("Importance 1-5"),
       reason: z.string()
     })),
     adjustments: z.array(z.object({
@@ -60,11 +76,11 @@ const criteriaRefinementSchema = z.object({
       change: z.enum(["increased", "decreased", "unchanged"]),
       reason: z.string()
     }))
-  }).describe("Structured refinements to the job criteria"),
-  explanation: z.string().describe("Overall explanation of the refinements made")
+  }).describe("Refined job criteria"),
+  explanation: z.string().describe("Explanation of changes")
 });
 
-// Define scoring criteria schema
+// Scoring criteria schema for evaluation
 const scoringCriteriaSchema = z.object({
   skillsWeight: z.number().min(0).max(1),
   experienceWeight: z.number().min(0).max(1),
@@ -95,7 +111,7 @@ const scoringCriteriaSchema = z.object({
   })).optional()
 });
 
-// Define the evaluation output schema
+// Evaluation schema for candidate scoring output
 const evaluationSchema = z.object({
   evaluations: z.array(z.object({
     candidateId: z.string(),
@@ -111,51 +127,50 @@ const evaluationSchema = z.object({
   }))
 });
 
-// Define the workflow state
+// Define the workflow state using annotations.
+// A new "candidateHistory" channel is added to accumulate candidates over iterations.
 const StateAnnotation = Annotation.Root({
   jobDescriptionId: Annotation<string>(),
   structuredJobDescription: Annotation<any>(),
+  // Current iteration candidates (overwritten each iteration)
   candidates: Annotation<Array<z.infer<typeof candidateProfileSchema>>>({
     default: () => [],
-    reducer: (a, b) => a.concat(b),
+    reducer: (_, curr) => curr,
   }),
   evaluatedCandidates: Annotation<Array<z.infer<typeof candidateProfileSchema>>>({
     default: () => [],
-    reducer: (a, b) => a.concat(b),
+    reducer: (_, curr) => curr,
   }),
   finalCandidates: Annotation<Array<z.infer<typeof candidateProfileSchema>>>(),
-  userFeedback: Annotation<Array<{
-    candidateId: string,
-    isGoodFit: boolean,
-    feedback?: string
-  }>>({
+  userFeedback: Annotation<Array<{ candidateId: string, isGoodFit: boolean, feedback?: string }>>({
     default: () => [],
-    reducer: (a, b) => a.concat(b),
+    reducer: (_, curr) => curr,
   }),
   iterationCount: Annotation<number>({
     default: () => 0,
-    reducer: (_, b) => b,
+    reducer: (_, curr) => curr,
   }),
   shouldTerminate: Annotation<boolean>({
     default: () => false,
-    reducer: (_, b) => b,
+    reducer: (_, curr) => curr,
+  }),
+  // Accumulate all generated candidates over iterations.
+  candidateHistory: Annotation<Array<z.infer<typeof candidateProfileSchema>>>({
+    default: () => [],
+    reducer: (prev = [], curr) => [...prev, ...curr],
   }),
   refinedCriteria: Annotation<z.infer<typeof criteriaRefinementSchema>>({
     default: () => ({
       refinedCriteria: {
         requiredSkills: [],
         preferredSkills: [],
-        experienceLevel: {
-          minYears: 0,
-          maxYears: 0,
-          reason: ""
-        },
+        experienceLevel: { minYears: 0, maxYears: 0, reason: "" },
         culturalAttributes: [],
         adjustments: []
       },
       explanation: ""
     }),
-    reducer: (_, b) => b,
+    reducer: (_, curr) => curr,
   }),
   scoringCriteria: Annotation<z.infer<typeof scoringCriteriaSchema>>({
     default: () => ({
@@ -166,35 +181,34 @@ const StateAnnotation = Annotation.Root({
       leadershipWeight: 0.1,
       requiredSkills: [],
       preferredSkills: [],
-      experienceLevels: {
-        minimum: 0,
-        preferred: 0,
-        maximum: 0,
-        yearsWeight: 0.5
-      },
+      experienceLevels: { minimum: 0, preferred: 0, maximum: 0, yearsWeight: 0.5 },
       culturalCriteria: [],
       leadershipCriteria: []
     }),
-    reducer: (_, b) => b,
+    reducer: (_, curr) => curr,
   }),
   error: Annotation<string>(),
 });
 
-// Debug helper function
+// Helper function to log state
 function logState(phase: string, state: typeof StateAnnotation.State) {
   console.log('\n=== Debug:', phase, '===');
   console.log('Iteration:', state.iterationCount);
   console.log('Candidates:', state.candidates?.length || 0);
+  console.log('Candidate History:', state.candidateHistory?.length || 0);
   console.log('Evaluated Candidates:', state.evaluatedCandidates?.length || 0);
-  console.log('Final Candidates:', state.finalCandidates?.length || 0);
+  console.log('Final Candidates:', state.finalCandidates ? state.finalCandidates.length : 0);
   console.log('User Feedback:', state.userFeedback?.length || 0);
   console.log('Should Terminate:', state.shouldTerminate);
-  console.log('Error:', state.error || 'none');
+  console.log('Refined Criteria:', state.refinedCriteria);
   console.log('Full State:', JSON.stringify(state, null, 2));
   console.log('=== End Debug ===\n');
 }
 
-// Node 0: Fetch job description from database
+/**
+ * Node: Fetch job description from Supabase.
+ * Now also generates initial refinedCriteria if not yet set.
+ */
 async function fetchJobDescription(state: typeof StateAnnotation.State) {
   console.log('\n🔍 Fetching job description...');
   try {
@@ -203,24 +217,60 @@ async function fetchJobDescription(state: typeof StateAnnotation.State) {
       .select('parsed_content')
       .eq('id', state.jobDescriptionId)
       .single();
-
     if (error) throw new Error(`Failed to fetch job description: ${error.message}`);
-    if (!jobDescription?.parsed_content) throw new Error('No parsed content found for job description');
-
+    if (!jobDescription) throw new Error('Job description not found');
+    const jobDesc = jobDescription.parsed_content;
     console.log('✅ Job description fetched successfully');
-    return { 
-      structuredJobDescription: jobDescription.parsed_content 
-    };
+
+    // If refinedCriteria is empty (e.g. no required skills), generate initial criteria
+    let newRefinedCriteria = state.refinedCriteria;
+    if (
+      !state.refinedCriteria ||
+      !state.refinedCriteria.refinedCriteria.requiredSkills ||
+      state.refinedCriteria.refinedCriteria.requiredSkills.length === 0
+    ) {
+      const initialCriteriaPrompt = `Based on the following job description, generate initial selection criteria (including required skills, preferred skills, experience level, and cultural attributes) in JSON format that matches this schema:
+${JSON.stringify(criteriaRefinementSchema.shape, null, 2)}
+
+Job Description:
+${JSON.stringify(jobDesc, null, 2)}
+
+Return a JSON object.`;
+      try {
+        const initialCriteriaStr = await llm.invoke(initialCriteriaPrompt);
+        let parsedInitialCriteria;
+        try {
+          parsedInitialCriteria = JSON.parse(initialCriteriaStr);
+        } catch (e) {
+          console.error("Error parsing initial criteria, using defaults.");
+          parsedInitialCriteria = {
+            refinedCriteria: {
+              requiredSkills: [],
+              preferredSkills: [],
+              experienceLevel: { minYears: 0, maxYears: 0, reason: "" },
+              culturalAttributes: [],
+              adjustments: []
+            },
+            explanation: "Default criteria"
+          };
+        }
+        newRefinedCriteria = parsedInitialCriteria;
+        console.log("Initial refined criteria generated:", newRefinedCriteria);
+      } catch (error) {
+        console.error("Error generating initial criteria:", error);
+      }
+    }
+    return { structuredJobDescription: jobDesc, refinedCriteria: newRefinedCriteria };
   } catch (error) {
-    console.error('❌ Error fetching job description:', error);
-    return { 
-      error: error instanceof Error ? error.message : 'Failed to fetch job description',
-      structuredJobDescription: null
-    };
+    console.error('❌ Error in fetchJobDescription:', error);
+    return { error: error instanceof Error ? error.message : 'Failed to fetch job description' };
   }
 }
 
-// Node 1: Generate initial candidate profiles
+/**
+ * Node: Generate candidate profiles.
+ * Incorporates candidateHistory and includes the job description in the prompt.
+ */
 async function generateCandidates(state: typeof StateAnnotation.State) {
   console.log('\n👥 Generating candidates...');
   console.log('Current iteration:', state.iterationCount);
@@ -229,54 +279,47 @@ async function generateCandidates(state: typeof StateAnnotation.State) {
     console.error('❌ Cannot generate candidates:', state.error || 'No job description');
     return { candidates: [] };
   }
-
+  
   const jobDesc = state.structuredJobDescription;
-  const refinedCriteria = state.refinedCriteria || jobDesc;
+  const refinedCriteria = state.refinedCriteria || {};
   const isFinalIteration = state.iterationCount === MAX_ITERATIONS - 1;
   const candidateCount = isFinalIteration ? 10 : 5;
   
-  console.log(`Generating ${candidateCount} candidates (${isFinalIteration ? 'final iteration' : 'normal iteration'})`);
+  // Prepare candidate history section for the prompt.
+  const candidateHistoryPrompt = state.candidateHistory && state.candidateHistory.length
+    ? `Previously generated candidates:\n${JSON.stringify(state.candidateHistory, null, 2)}\n\nEnsure new candidates are distinct.`
+    : "";
   
-  // Augment LLM with structured output for candidate generation
-  const candidateGenerator = llm.withStructuredOutput(z.object({
-    candidates: z.array(candidateProfileSchema)
-  }));
+  const contextPrompt = `Generate exactly ${candidateCount} diverse candidate profiles that match the following job description.
   
-  let contextPrompt = `Generate exactly ${candidateCount} diverse candidate profiles that would be strong matches for this job description.
-  Focus on creating realistic profiles with varied backgrounds and skill sets that align with the requirements.
-  
-  Job Description and Requirements:
-  ${JSON.stringify(refinedCriteria, null, 2)}`;
+Job Description:
+${JSON.stringify(jobDesc, null, 2)}
 
-  // Add previous candidates and feedback context if available
-  if (state.candidates.length > 0 && state.userFeedback.length > 0) {
-    const previousCandidates = state.candidates.map(candidate => ({
-      ...candidate,
-      feedback: state.userFeedback.find(f => f.candidateId === candidate.id)?.isGoodFit ? "Good fit" : "Not a good fit"
-    }));
+Refined Criteria:
+${JSON.stringify(refinedCriteria, null, 2)}
 
-    contextPrompt += `\n\nPreviously Generated Candidates and Their Feedback:
-    ${JSON.stringify(previousCandidates, null, 2)}
-    
-    Based on the feedback above:
-    1. Generate candidates that share positive qualities with candidates marked as "Good fit"
-    2. Avoid qualities similar to candidates marked as "Not a good fit"
-    3. Ensure the new candidates are distinct from all previous candidates
-    4. Focus on the refined criteria while maintaining diversity`;
+${candidateHistoryPrompt}
+
+Important:
+- Generate exactly ${candidateCount} new and unique candidates.
+- Avoid duplicating attributes from previous iterations.`;
+  
+  try {
+    const candidateGenerator = llm.withStructuredOutput(
+      z.object({ candidates: z.array(candidateProfileSchema) })
+    );
+    const result = await candidateGenerator.invoke(contextPrompt);
+    console.log(`✅ Generated ${result.candidates.length} candidates`);
+    return { candidates: result.candidates };
+  } catch (error) {
+    console.error('❌ Error generating candidates:', error);
+    return { error: error instanceof Error ? error.message : 'Candidate generation failed', candidates: [] };
   }
-
-  contextPrompt += `\n\nImportant:
-  - Generate exactly ${candidateCount} candidates
-  - Each candidate must be unique and different from any previously generated candidates
-  - Ensure high relevance to the role while maintaining diverse backgrounds
-  - Focus on qualities that have received positive feedback in previous iterations${isFinalIteration ? '\n  - This is the final iteration, so provide a wider range of qualified candidates' : ''}`;
-
-  const result = await candidateGenerator.invoke(contextPrompt);
-  console.log(`✅ Generated ${result.candidates.length} candidates`);
-  return { candidates: result.candidates };
 }
 
-// Node 2: Evaluate and score candidates
+/**
+ * Node: Evaluate and score generated candidates.
+ */
 async function evaluateCandidates(state: typeof StateAnnotation.State) {
   console.log('\n⭐ Evaluating candidates...');
   
@@ -284,118 +327,108 @@ async function evaluateCandidates(state: typeof StateAnnotation.State) {
     console.error('❌ Cannot evaluate candidates:', state.error || 'Missing data');
     return { evaluatedCandidates: [] };
   }
-
-  const jobDesc = state.structuredJobDescription;
-  const candidates = state.candidates;
   
-  // Augment LLM with structured output for evaluation
   const evaluator = llm.withStructuredOutput(evaluationSchema);
-  
-  const prompt = `You are an expert technical recruiter evaluating candidates for the following job description:
+  const prompt = `Evaluate the following candidate profiles against the job description and refined criteria.
+Job Description:
+${JSON.stringify(state.structuredJobDescription, null, 2)}
 
-${jobDesc}
-
-The refined criteria based on previous feedback are:
+Refined Criteria:
 ${JSON.stringify(state.refinedCriteria, null, 2)}
 
-Please evaluate each candidate using the following scoring criteria:
+Scoring Criteria:
 ${JSON.stringify(state.scoringCriteria, null, 2)}
 
+Candidate Profiles:
+${JSON.stringify(state.candidates, null, 2)}
+
 For each candidate, provide:
-1. A total match score (0-100)
-2. A breakdown of scores for each criterion
-3. A detailed explanation of the scoring rationale
-
-Candidates to evaluate:
-${JSON.stringify(candidates, null, 2)}`;
-
-  const result = await evaluator.invoke(prompt);
+- Total match score (0-100)
+- A breakdown of scores (skills, experience, achievements, cultural fit, and leadership if applicable)
+- Detailed reasoning for the score`;
   
-  const evaluatedCandidates = result.evaluations.map((evaluation) => ({
-    ...candidates.find(c => c.id === evaluation.candidateId)!,
-    matchScore: evaluation.matchScore,
-    scoringDetails: evaluation.scoringDetails,
-    reasonForMatch: evaluation.reasonForMatch
-  }));
-
-  console.log(`✅ Evaluated ${evaluatedCandidates.length} candidates`);
-  return { evaluatedCandidates };
+  try {
+    const result = await evaluator.invoke(prompt);
+    const evaluatedCandidates = result.evaluations.map((evaluation: any) => {
+      const candidate = state.candidates.find((c: any) => c.id === evaluation.candidateId);
+      return {
+        ...candidate,
+        matchScore: evaluation.matchScore,
+        scoringDetails: evaluation.scoringDetails,
+        reasonForMatch: evaluation.reasonForMatch
+      };
+    });
+    console.log(`✅ Evaluated ${evaluatedCandidates.length} candidates`);
+    return { evaluatedCandidates };
+  } catch (error) {
+    console.error('❌ Error evaluating candidates:', error);
+    return { error: error instanceof Error ? error.message : 'Evaluation failed', evaluatedCandidates: [] };
+  }
 }
 
-// Node 3: Final ranking and selection
-async function rankCandidates(state: typeof StateAnnotation.State) {
+/**
+ * Node: Rank candidates and select final set.
+ */
+function rankCandidates(state: typeof StateAnnotation.State) {
   console.log('\n📊 Ranking candidates...');
-  
   if (state.error || !state.evaluatedCandidates.length) {
-    console.error('❌ Cannot rank candidates:', state.error || 'No candidates to rank');
-    return { 
-      finalCandidates: [],
-      error: state.error || 'No candidates to rank'
-    };
+    const errMsg = state.error || 'No evaluated candidates to rank';
+    console.error('❌', errMsg);
+    return { finalCandidates: [], error: errMsg };
   }
-
   const isFinalIteration = state.iterationCount === MAX_ITERATIONS - 1;
-  
-  const finalCandidates = state.evaluatedCandidates
-    .sort((a, b) => b.matchScore - a.matchScore)
-    .slice(0, isFinalIteration ? undefined : 3);
-  
+  const sorted = [...state.evaluatedCandidates].sort((a, b) => b.matchScore - a.matchScore);
+  const finalCandidates = isFinalIteration ? sorted : sorted.slice(0, 3);
   console.log(`✅ Selected ${finalCandidates.length} final candidates`);
   return { finalCandidates };
 }
 
-// Node 4: Store candidates in database
+/**
+ * Node: Store the final candidates in Supabase.
+ */
 async function storeCandidates(state: typeof StateAnnotation.State) {
   console.log('\n💾 Storing candidates...');
-  
   if (state.error || !state.finalCandidates?.length) {
-    console.error('❌ Cannot store candidates:', state.error || 'No candidates to store');
-    return { error: state.error || 'No candidates to store' };
+    const errMsg = state.error || 'No candidates to store';
+    console.error('❌', errMsg);
+    return { error: errMsg, finalCandidates: state.finalCandidates };
   }
-
+  
   const isFinalIteration = state.iterationCount === MAX_ITERATIONS - 1;
-
-  try {
-    // Map candidates to database schema
-    const candidatesToInsert = state.finalCandidates.map(candidate => ({
-      job_description_id: state.jobDescriptionId,
-      name: candidate.name,
-      background: candidate.background,
-      skills: candidate.skills,
-      years_of_experience: candidate.yearsOfExperience,
-      achievements: candidate.achievements,
+  const candidatesToInsert = state.finalCandidates.map(candidate => ({
+    job_description_id: state.jobDescriptionId,
+    name: candidate.name,
+    background: candidate.background,
+    skills: candidate.skills,
+    years_of_experience: candidate.yearsOfExperience,
+    achievements: candidate.achievements,
+    score: candidate.matchScore,
+    status: isFinalIteration ? 'final' : 'generated',
+    judge_evaluation: {
       score: candidate.matchScore,
-      status: isFinalIteration ? 'final' : 'generated',
-      judge_evaluation: {
-        score: candidate.matchScore,
-        reason: candidate.reasonForMatch,
-        scoring_details: candidate.scoringDetails
-      }
-    }));
-
-    // Insert candidates into database
+      reason: candidate.reasonForMatch,
+      scoring_details: candidate.scoringDetails
+    }
+  }));
+  
+  try {
     const { data: storedCandidates, error: candidateError } = await supabase
       .from('candidate_profiles')
       .insert(candidatesToInsert)
       .select('*');
-
     if (candidateError) throw new Error(`Failed to store candidates: ${candidateError.message}`);
-
-    // If this is the final iteration, store the final state
+    
     if (isFinalIteration) {
-      // Calculate voting statistics
       const totalVotes = state.userFeedback.length;
       const upvotes = state.userFeedback.filter(f => f.isGoodFit).length;
       const upvotePercentage = totalVotes > 0 ? (upvotes / totalVotes) * 100 : 0;
-
-      // Store final iteration data
+      
       const { error: finalStateError } = await supabase
         .from('matching_iterations')
         .insert({
           job_description_id: state.jobDescriptionId,
           iteration_number: state.iterationCount,
           refined_criteria: state.refinedCriteria,
-          scoring_criteria: state.scoringCriteria,
           feedback_summary: {
             total_votes: totalVotes,
             upvotes,
@@ -404,10 +437,8 @@ async function storeCandidates(state: typeof StateAnnotation.State) {
           },
           is_final: true
         });
-
-      if (finalStateError) throw new Error(`Failed to store final state: ${finalStateError.message}`);
-
-      // Update job description status
+      if (finalStateError) throw new Error(`Failed to store final iteration: ${finalStateError.message}`);
+      
       const { error: jobUpdateError } = await supabase
         .from('job_descriptions')
         .update({ 
@@ -420,12 +451,10 @@ async function storeCandidates(state: typeof StateAnnotation.State) {
           }
         })
         .eq('id', state.jobDescriptionId);
-
-      if (jobUpdateError) throw new Error(`Failed to update job status: ${jobUpdateError.message}`);
+      if (jobUpdateError) throw new Error(`Failed to update job description: ${jobUpdateError.message}`);
     }
-
-    // Map stored candidates back to our schema format with IDs
-    const candidatesWithIds = storedCandidates.map(stored => ({
+    
+    const candidatesWithIds = storedCandidates.map((stored: any) => ({
       id: stored.id,
       name: stored.name,
       background: stored.background,
@@ -436,134 +465,111 @@ async function storeCandidates(state: typeof StateAnnotation.State) {
       reasonForMatch: stored.judge_evaluation.reason,
       scoringDetails: stored.judge_evaluation.scoring_details
     }));
-
     console.log('✅ Stored candidates successfully');
     logState('After storing candidates', state);
-    return { 
-      finalCandidates: candidatesWithIds
-    };
+    return { finalCandidates: candidatesWithIds };
   } catch (error) {
-    console.error('Error storing candidates:', error);
-    return { 
-      error: error instanceof Error ? error.message : 'Failed to store candidates',
-      finalCandidates: state.finalCandidates
-    };
+    console.error('❌ Error storing candidates:', error);
+    return { error: error instanceof Error ? error.message : 'Failed to store candidates', finalCandidates: state.finalCandidates };
   }
 }
 
-// Node 5: Process user feedback and refine criteria
+/**
+ * Node: Process user feedback and refine criteria.
+ */
 async function processFeedback(state: typeof StateAnnotation.State) {
   console.log('\n📝 Processing feedback...');
   console.log('Current iteration:', state.iterationCount);
   console.log('Feedback count:', state.userFeedback?.length || 0);
   
-  // Check iteration limit
+  // If maximum iterations reached, signal termination.
   if (state.iterationCount >= MAX_ITERATIONS - 1) {
-    console.log('🏁 Reached maximum iterations, terminating');
-    return { 
-      refinedCriteria: state.refinedCriteria,
-      shouldTerminate: true,
-      iterationCount: state.iterationCount + 1
-    };
+    console.log('🏁 Maximum iterations reached. Terminating workflow.');
+    return { refinedCriteria: state.refinedCriteria, shouldTerminate: true, iterationCount: state.iterationCount + 1 };
   }
-
+  
+  // If no new feedback, keep refinedCriteria unchanged.
   if (!state.userFeedback?.length) {
-    console.log('ℹ️ No feedback to process');
-    return { refinedCriteria: state.structuredJobDescription };
+    console.log('ℹ️ No new feedback. Keeping existing refined criteria.');
+    return { refinedCriteria: state.refinedCriteria, iterationCount: state.iterationCount + 1 };
   }
-
-  // Augment LLM with structured output for criteria refinement
+  
   const refiner = llm.withStructuredOutput(criteriaRefinementSchema);
-
-  // Map feedback to candidates for context
+  
   const feedbackWithCandidates = state.userFeedback.map(feedback => {
     const candidate = state.candidates.find(c => c.id === feedback.candidateId);
-    return {
-      candidate,
-      isGoodFit: feedback.isGoodFit,
-      feedback: feedback.feedback
-    };
+    return { candidate, isGoodFit: feedback.isGoodFit, feedback: feedback.feedback };
   });
+  
+  const prompt = `Analyze the candidate feedback below and refine the job criteria.
+  
+Original Job Description:
+${JSON.stringify(state.structuredJobDescription, null, 2)}
 
-  const prompt = `Analyze the feedback on candidates and refine the job requirements to generate better matches.
-  
-  Original Job Description:
-  ${JSON.stringify(state.structuredJobDescription, null, 2)}
-  
-  Previous Refinements (if any):
-  ${state.refinedCriteria ? JSON.stringify(state.refinedCriteria, null, 2) : "None"}
-  
-  Candidate Feedback:
-  ${JSON.stringify(feedbackWithCandidates, null, 2)}
-  
-  Instructions:
-  1. Analyze patterns in what made candidates good or poor fits
-  2. Adjust skill requirements based on successful matches
-  3. Refine experience levels based on feedback
-  4. Update cultural attributes based on fit
-  5. Document each change and why it was made
-  6. Build upon previous refinements if they were successful
-  
-  Return a structured refinement that clearly shows:
-  - Which skills became more/less important
-  - How experience requirements changed
-  - What cultural attributes matter most
-  - Clear reasoning for each adjustment
-  
-  Important: Maintain the schema structure with all required fields:
-  - requiredSkills and preferredSkills (with importance 1-5)
-  - experienceLevel (min/max years)
-  - culturalAttributes (with importance 1-5)
-  - adjustments tracking what changed`;
+Current Refined Criteria:
+${JSON.stringify(state.refinedCriteria, null, 2)}
 
-  const result = await refiner.invoke(prompt);
+Candidate Feedback:
+${JSON.stringify(feedbackWithCandidates, null, 2)}
+
+Instructions:
+1. Identify patterns in the feedback.
+2. Adjust required and preferred skills based on positive feedback.
+3. Modify experience levels and cultural attributes if needed.
+4. Clearly explain each change.
+
+Return a JSON object with the refined criteria and an explanation.`;
   
-  // Store iteration in database
   try {
-    const { error } = await supabase
-      .from('matching_iterations')
-      .insert({
-        job_description_id: state.jobDescriptionId,
-        iteration_number: state.iterationCount + 1,
-        refined_criteria: result.refinedCriteria,
-        feedback_summary: result.explanation
-      });
-
-    if (error) throw error;
+    const result = await refiner.invoke(prompt);
+    try {
+      const { error } = await supabase
+        .from('matching_iterations')
+        .insert({
+          job_description_id: state.jobDescriptionId,
+          iteration_number: state.iterationCount + 1,
+          refined_criteria: result.refinedCriteria,
+          feedback_summary: result.explanation
+        });
+      if (error) console.error('❌ Error storing iteration feedback:', error);
+    } catch (storeError) {
+      console.error('❌ Iteration feedback storage error:', storeError);
+    }
+    console.log('✅ Feedback processed and criteria refined.');
+    return { refinedCriteria: result.refinedCriteria, iterationCount: state.iterationCount + 1 };
   } catch (error) {
-    console.error('Error storing iteration:', error);
+    console.error('❌ Error processing feedback:', error);
+    return { error: error instanceof Error ? error.message : 'Feedback processing failed' };
   }
-
-  console.log('✅ Processed feedback and refined criteria');
-  return { 
-    refinedCriteria: result.refinedCriteria,
-    iterationCount: state.iterationCount + 1
-  };
 }
 
-// Node 6: Check if we should continue iterating
-function shouldContinue(state: typeof StateAnnotation.State) {
+/**
+ * Node: Decide whether to continue iterating.
+ */
+function shouldContinue(state: typeof StateAnnotation.State): "iterate" | "complete" {
   console.log('\n🔄 Checking iteration status...');
-  console.log('Current iteration:', state.iterationCount);
-  console.log('Has feedback:', !!state.userFeedback?.length);
-  
-  // Stop if we've reached max iterations or have no feedback
+  console.log('Iteration:', state.iterationCount);
+  console.log('Feedback exists:', !!state.userFeedback?.length);
   if (state.iterationCount >= MAX_ITERATIONS - 1 || !state.userFeedback?.length) {
     console.log('🛑 Workflow complete');
     return "complete";
   }
-  
-  console.log('➡️ Continuing to next iteration');
+  console.log('➡️ Continue iterating');
   return "iterate";
 }
 
-// Node for waiting for feedback
+/**
+ * Node: Wait for feedback.
+ * Instead of throwing an error, we return a waiting signal.
+ */
 const waitForFeedback = RunnableLambda.from(async () => {
   console.log('\n⏳ Waiting for feedback...');
-  throw new Error("Waiting for feedback");
+  return { waiting: true };
 });
 
-// Build the workflow
+/**
+ * Build and compile the candidate matching workflow graph.
+ */
 export const candidateMatchingWorkflow = new StateGraph(StateAnnotation)
   .addNode("fetchJobDescription", fetchJobDescription)
   .addNode("generateCandidates", generateCandidates)
@@ -572,20 +578,17 @@ export const candidateMatchingWorkflow = new StateGraph(StateAnnotation)
   .addNode("storeCandidates", storeCandidates)
   .addNode("waitForFeedback", waitForFeedback)
   .addNode("processFeedback", processFeedback)
-  .addEdge("__start__", "fetchJobDescription")
+  .addEdge(START, "fetchJobDescription")
   .addEdge("fetchJobDescription", "generateCandidates")
   .addEdge("generateCandidates", "evaluateCandidates")
   .addEdge("evaluateCandidates", "rankCandidates")
   .addEdge("rankCandidates", "storeCandidates")
   .addConditionalEdges(
     "storeCandidates",
-    shouldContinue,
-    {
-      "iterate": "waitForFeedback",
-      "complete": "__end__"
-    }
+    (state) =>
+      state.iterationCount >= MAX_ITERATIONS - 1 || !state.userFeedback?.length ? "complete" : "iterate",
+    { "iterate": "waitForFeedback", "complete": END }
   )
   .addEdge("waitForFeedback", "processFeedback")
   .addEdge("processFeedback", "generateCandidates")
   .compile();
-
